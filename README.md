@@ -81,6 +81,26 @@ c.image("logo.png")
 See [`examples/`](examples/): reactive finger-tracking ripples, tappable buttons, and a
 scrolling marquee — all built on the public API.
 
+## Control strip (companion app)
+
+The repo also ships **`t1touchbar-strip`** — a reference *control strip* app built on the
+driver, so a fresh install lands on something that visibly works without any design tool.
+It plays a welcome showcase, then shows a functional strip — **Esc, brightness, keyboard
+backlight, media, volume** (with the native on-screen OSD), live **play/pause** state, and
+**hold the physical Fn key for F1–F12**. It's the *opinionated* layer; the core driver
+stays pure.
+
+```bash
+sudo t1touchbar-strip               # welcome, then the control strip
+```
+
+**Auto-start on boot** (optional — it takes over the bar; disable anytime):
+
+```bash
+sudo bash packaging/install-service.sh        # installs + enables the systemd service
+sudo systemctl disable --now t1touchbar-strip # ...and to hand the bar back
+```
+
 ## Important caveats
 
 - **One owner at a time.** Only one process may hold the device (config 2).

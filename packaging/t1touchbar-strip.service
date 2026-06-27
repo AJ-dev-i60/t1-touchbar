@@ -1,0 +1,15 @@
+[Unit]
+Description=T1 Touch Bar control strip (t1-touchbar)
+Documentation=https://github.com/AJ-dev-i60/t1-touchbar
+After=multi-user.target
+
+[Service]
+Type=simple
+# Runs as root: needs USB control + briefly unloading the kernel touchbar modules.
+# Media/volume are bridged to the logged-in user's session automatically.
+ExecStart=/usr/bin/env t1touchbar-strip --welcome-once
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
