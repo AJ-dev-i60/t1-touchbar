@@ -78,14 +78,24 @@ def _media(arg):
     _run_user(["playerctl", arg])
 
 
+def _user_cmd(cmd):
+    """Wrap a command to run in the desktop user's session (when we're root)."""
+    uid, env = _desktop_session()
+    if uid is not None and os.geteuid() == 0:
+        return ["sudo", "-u", f"#{uid}", "env"] + [f"{k}={v}" for k, v in env.items()] + cmd
+    return cmd
+
+
+def media_follow_command():
+    """argv that streams MPRIS status changes (one line per change), session-bridged."""
+    return _user_cmd(["playerctl", "--follow", "status"])
+
+
 def media_status():
     """Current MPRIS playback state: 'Playing', 'Paused', 'Stopped', or None."""
-    uid, env = _desktop_session()
-    cmd = ["playerctl", "status"]
-    if uid is not None and os.geteuid() == 0:
-        cmd = ["sudo", "-u", f"#{uid}", "env"] + [f"{k}={v}" for k, v in env.items()] + cmd
     try:
-        out = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+        out = subprocess.run(_user_cmd(["playerctl", "status"]),
+                             capture_output=True, text=True, timeout=2)
         s = out.stdout.strip()
         return s if s in ("Playing", "Paused", "Stopped") else None
     except Exception:
