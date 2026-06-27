@@ -7,12 +7,12 @@ import math
 
 
 def _plus(d, cx, cy, r, color):
-    d.line([(cx - r, cy), (cx + r, cy)], fill=color, width=2)
-    d.line([(cx, cy - r), (cx, cy + r)], fill=color, width=2)
+    d.line([(cx - r, cy), (cx + r, cy)], fill=color, width=3)
+    d.line([(cx, cy - r), (cx, cy + r)], fill=color, width=3)
 
 
 def _minus(d, cx, cy, r, color):
-    d.line([(cx - r, cy), (cx + r, cy)], fill=color, width=2)
+    d.line([(cx - r, cy), (cx + r, cy)], fill=color, width=3)
 
 
 def draw(d, name, box, color=(255, 255, 255)):
@@ -54,10 +54,10 @@ def draw(d, name, box, color=(255, 255, 255)):
             dx, dy = math.cos(math.radians(a)), math.sin(math.radians(a))
             d.line([(cx + dx * r * 0.75, cy + dy * r * 0.75),
                     (cx + dx * r * 1.0, cy + dy * r * 1.0)], fill=color, width=2)
-        (_plus if name == "bright_up" else _minus)(d, cx + r * 1.5, cy, r * 0.4, color)
+        (_plus if name == "bright_up" else _minus)(d, cx + r * 1.8, cy, r * 0.5, color)
     elif name in ("kbd_up", "kbd_dn"):
         d.rounded_rectangle([cx - r, cy - r * 0.6, cx + r, cy + r * 0.6], radius=3,
                             outline=color, width=2)
         for ix in (-r * 0.5, 0, r * 0.5):
             d.ellipse([cx + ix - 1, cy - 1, cx + ix + 1, cy + 1], fill=color)
-        (_plus if name == "kbd_up" else _minus)(d, cx + r * 1.6, cy, r * 0.4, color)
+        (_plus if name == "kbd_up" else _minus)(d, cx + r * 1.9, cy, r * 0.5, color)

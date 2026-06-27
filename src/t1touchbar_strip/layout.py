@@ -32,14 +32,13 @@ CONTROL_STRIP = [
     Button("vol_dn", ("volume", "-"), icon="vol_dn"),
     Button("mute", ("volume", "mute"), icon="mute"),
     Button("vol_up", ("volume", "+"), icon="vol_up"),
-    Button("fn", ("layout", "fkeys"), label="Fn", weight=1.0),
+    # No Fn softkey: the physical Fn key drives the F-key layout (held -> fkeys).
 ]
 
-# The F-key layout, reachable via the Fn button.
+# The F-key layout, shown while the physical Fn key is held.
 FKEYS = (
     [Button("esc", ("key", "KEY_ESC"), label="esc", weight=1.2)]
     + [Button(f"f{i}", ("key", f"KEY_F{i}"), label=f"F{i}") for i in range(1, 13)]
-    + [Button("ctrl", ("layout", "control"), label="Fn", weight=1.0)]
 )
 
 LAYOUTS = {"control": CONTROL_STRIP, "fkeys": FKEYS}

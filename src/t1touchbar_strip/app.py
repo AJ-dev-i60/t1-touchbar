@@ -13,6 +13,7 @@ from t1touchbar import Device, TouchReader
 from . import layout as L
 from . import render
 from . import welcome
+from .keys import FnWatcher
 
 
 class StripApp:
@@ -38,7 +39,10 @@ class StripApp:
 
             tr = TouchReader(w, h)
             tr.start(lambda ev: self._on_touch(ev, w))
-            print(f"[strip] control strip ready ({w}x{h}). Ctrl-C to quit.", flush=True)
+            fn = FnWatcher(self._on_fn)
+            fn.start()
+            print(f"[strip] control strip ready ({w}x{h}). Hold Fn for F-keys. Ctrl-C to quit.",
+                  flush=True)
             try:
                 while True:
                     if self.dirty:
@@ -49,6 +53,13 @@ class StripApp:
                 pass
             finally:
                 tr.stop()
+                fn.stop()
+
+    def _on_fn(self, pressed):
+        # Physical Fn held -> F-keys; released -> control strip.
+        self.current = "fkeys" if pressed else "control"
+        self.pressed = None
+        self.dirty = True
 
     def _on_touch(self, ev, width):
         lay = L.LAYOUTS[self.current]
