@@ -34,7 +34,7 @@ def hit(layout, px, width):
     return layout[-1] if layout else None
 
 
-def render(layout, width, height, pressed=None):
+def render(layout, width, height, pressed=None, playing=None):
     im = Image.new("RGB", (width, height), (0, 0, 0))
     d = ImageDraw.Draw(im)
     font = _font(26)
@@ -44,8 +44,14 @@ def render(layout, width, height, pressed=None):
                             fill=(0, 120, 255) if on else (28, 28, 34),
                             outline=(70, 70, 82), width=1)
         col = (255, 255, 255)
-        if b.icon:
-            icons.draw(d, b.icon, (x0 + 10, 6, x1 - 10, height - 6), col)
+        icon = b.icon
+        if b.id == "play" and playing is not None:
+            # Reflect live media state. Standard convention: the icon shows what a
+            # tap will DO -> pause while playing, play while paused. (Flip these two
+            # if you'd rather mirror the current state instead.)
+            icon = "pause" if playing else "play"
+        if icon:
+            icons.draw(d, icon, (x0 + 10, 6, x1 - 10, height - 6), col)
         elif b.label:
             bb = d.textbbox((0, 0), b.label, font=font)
             tw, th = bb[2] - bb[0], bb[3] - bb[1]

@@ -78,6 +78,20 @@ def _media(arg):
     _run_user(["playerctl", arg])
 
 
+def media_status():
+    """Current MPRIS playback state: 'Playing', 'Paused', 'Stopped', or None."""
+    uid, env = _desktop_session()
+    cmd = ["playerctl", "status"]
+    if uid is not None and os.geteuid() == 0:
+        cmd = ["sudo", "-u", f"#{uid}", "env"] + [f"{k}={v}" for k, v in env.items()] + cmd
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+        s = out.stdout.strip()
+        return s if s in ("Playing", "Paused", "Stopped") else None
+    except Exception:
+        return None
+
+
 def _volume(arg):
     if arg == "mute":
         _run_user(["wpctl", "set-mute", SINK, "toggle"])

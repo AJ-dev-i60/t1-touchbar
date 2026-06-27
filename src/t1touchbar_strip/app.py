@@ -6,10 +6,12 @@ display + touch behaviour can be validated safely. Real system actions
 (uinput keys, media, volume, brightness, kbd backlight) arrive in increment 2 via
 actions.py.
 """
+import threading
 import time
 
 from t1touchbar import Device, TouchReader
 
+from . import actions
 from . import layout as L
 from . import render
 from . import welcome
@@ -21,7 +23,9 @@ class StripApp:
         self.show_welcome = show_welcome
         self.current = "control"
         self.pressed = None
+        self.playing = False
         self.dirty = True
+        self._media_run = False
         # `on_action(action_tuple)` performs a system action; default logs only.
         self.on_action = on_action or self._log_action
 
@@ -41,19 +45,31 @@ class StripApp:
             tr.start(lambda ev: self._on_touch(ev, w))
             fn = FnWatcher(self._on_fn)
             fn.start()
+            self._media_run = True
+            threading.Thread(target=self._media_loop, daemon=True).start()
             print(f"[strip] control strip ready ({w}x{h}). Hold Fn for F-keys. Ctrl-C to quit.",
                   flush=True)
             try:
                 while True:
                     if self.dirty:
                         self.dirty = False
-                        bar.blit(render.render(L.LAYOUTS[self.current], w, h, self.pressed))
+                        bar.blit(render.render(L.LAYOUTS[self.current], w, h,
+                                               self.pressed, self.playing))
                     time.sleep(0.02)
             except KeyboardInterrupt:
                 pass
             finally:
+                self._media_run = False
                 tr.stop()
                 fn.stop()
+
+    def _media_loop(self):
+        while self._media_run:
+            playing = (actions.media_status() == "Playing")
+            if playing != self.playing:
+                self.playing = playing
+                self.dirty = True
+            time.sleep(0.5)
 
     def _on_fn(self, pressed):
         # Physical Fn held -> F-keys; released -> control strip.
@@ -74,6 +90,8 @@ class StripApp:
                 self.pressed = None
             else:
                 self.on_action(b.action)
+                if b.id == "play":
+                    self.playing = not self.playing   # instant feedback; poll reconciles
         elif ev.state == "up":
             if self.pressed is not None:
                 self.pressed = None
