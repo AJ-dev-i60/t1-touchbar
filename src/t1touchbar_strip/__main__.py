@@ -1,8 +1,9 @@
 """Entry point: `t1touchbar-strip [options]`.
 
-    t1touchbar-strip                run the welcome showcase then the control strip
+    t1touchbar-strip                welcome showcase, then the control strip
     t1touchbar-strip --no-welcome   skip the welcome showcase
     t1touchbar-strip --welcome-only play only the welcome showcase and exit
+    t1touchbar-strip --dry-run      log actions instead of applying them
 """
 import sys
 
@@ -18,7 +19,11 @@ def main(argv=None):
         return 0
 
     from .app import StripApp
-    StripApp(show_welcome="--no-welcome" not in argv).run()
+    on_action = None
+    if "--dry-run" not in argv:
+        from . import actions
+        on_action = actions.dispatch
+    StripApp(show_welcome="--no-welcome" not in argv, on_action=on_action).run()
     return 0
 
 

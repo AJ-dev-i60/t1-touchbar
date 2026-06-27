@@ -20,18 +20,20 @@ class Button:
 
 
 # The default control strip (mirrors the classic Touch Bar control strip).
+# These emit the standard key events so the desktop (e.g. GNOME) handles both the
+# level change AND its native on-screen OSD overlay — exactly like the firmware did.
 CONTROL_STRIP = [
     Button("esc", ("key", "KEY_ESC"), label="esc", weight=1.2),
-    Button("bright_dn", ("brightness", "-"), icon="bright_dn"),
-    Button("bright_up", ("brightness", "+"), icon="bright_up"),
-    Button("kbd_dn", ("kbd_backlight", "-"), icon="kbd_dn"),
-    Button("kbd_up", ("kbd_backlight", "+"), icon="kbd_up"),
-    Button("prev", ("media", "previous"), icon="prev"),
-    Button("play", ("media", "play-pause"), icon="play"),
-    Button("next", ("media", "next"), icon="next"),
-    Button("vol_dn", ("volume", "-"), icon="vol_dn"),
-    Button("mute", ("volume", "mute"), icon="mute"),
-    Button("vol_up", ("volume", "+"), icon="vol_up"),
+    Button("bright_dn", ("key", "KEY_BRIGHTNESSDOWN"), icon="bright_dn"),
+    Button("bright_up", ("key", "KEY_BRIGHTNESSUP"), icon="bright_up"),
+    Button("kbd_dn", ("key", "KEY_KBDILLUMDOWN"), icon="kbd_dn"),
+    Button("kbd_up", ("key", "KEY_KBDILLUMUP"), icon="kbd_up"),
+    Button("prev", ("key", "KEY_PREVIOUSSONG"), icon="prev"),
+    Button("play", ("key", "KEY_PLAYPAUSE"), icon="play"),
+    Button("next", ("key", "KEY_NEXTSONG"), icon="next"),
+    Button("vol_dn", ("key", "KEY_VOLUMEDOWN"), icon="vol_dn"),
+    Button("mute", ("key", "KEY_MUTE"), icon="mute"),
+    Button("vol_up", ("key", "KEY_VOLUMEUP"), icon="vol_up"),
     # No Fn softkey: the physical Fn key drives the F-key layout (held -> fkeys).
 ]
 
