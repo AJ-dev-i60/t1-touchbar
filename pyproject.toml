@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "t1-touchbar"
+version = "0.1.0"
+description = "Display + input driver for the Apple T1 (iBridge) MacBook Pro Touch Bar on Linux"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "Armandt", email = "armandt@cloudnexus.co.za" }]
+keywords = ["touchbar", "macbook", "apple", "t1", "ibridge", "dfr", "linux", "driver"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Hardware :: Hardware Drivers",
+]
+dependencies = [
+    "pyusb>=1.2",
+    "Pillow>=9.0",
+    "evdev>=1.6",
+]
+
+[project.urls]
+Homepage = "https://github.com/AJ-dev-i60/t1-touchbar"
+Repository = "https://github.com/AJ-dev-i60/t1-touchbar"
+Issues = "https://github.com/AJ-dev-i60/t1-touchbar/issues"
+
+[project.scripts]
+t1touchbar = "t1touchbar.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/t1touchbar"]
