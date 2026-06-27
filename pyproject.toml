@@ -33,6 +33,7 @@ Issues = "https://github.com/AJ-dev-i60/t1-touchbar/issues"
 
 [project.scripts]
 t1touchbar = "t1touchbar.__main__:main"
+t1touchbar-strip = "t1touchbar_strip.__main__:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/t1touchbar"]
+packages = ["src/t1touchbar", "src/t1touchbar_strip"]
