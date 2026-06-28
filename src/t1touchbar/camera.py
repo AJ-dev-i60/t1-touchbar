@@ -117,7 +117,16 @@ class Camera:
                     dev.detach_kernel_driver(n)
             except Exception:
                 pass
-        usb.util.claim_interface(dev, self._ifnum)
+        # A just-stopped previous session may still be releasing the interface;
+        # retry briefly so a quick re-run doesn't fail with "Resource busy".
+        for attempt in range(10):
+            try:
+                usb.util.claim_interface(dev, self._ifnum)
+                break
+            except usb.core.USBError:
+                if attempt == 9:
+                    raise
+                time.sleep(0.3)
         self._dev = dev
         self._negotiate()
         return self
@@ -316,11 +325,19 @@ class LoopbackBridge:
             self._created_node = self.device
         self._cam = Camera(size=self.size, manage_config=self.manage_config,
                            manage_modules=self.manage_modules).open()
+        # The camera's raw H.264 elementary stream carries no timestamps; without
+        # help ffmpeg invents a bogus timebase (tbr ~1200k) and its v4l2 output
+        # rate-control drops almost every frame (~0.2 fps), so a continuous reader
+        # like Howdy/OpenCV stalls. Stamp frames with wall-clock arrival time and
+        # pass every decoded frame straight through (no rate-based drop/dup).
         self._ff = subprocess.Popen(
             ["ffmpeg", "-hide_banner", "-loglevel", "error",
+             "-use_wallclock_as_timestamps", "1",
              "-fflags", "nobuffer", "-flags", "low_delay",
-             "-f", "h264", "-framerate", str(self.fps), "-i", "pipe:0",
-             "-vf", "format=yuyv422", "-f", "v4l2", self.device],
+             "-f", "h264", "-i", "pipe:0",
+             "-an", "-vf", "format=yuyv422",
+             "-fps_mode", "passthrough",
+             "-f", "v4l2", self.device],
             stdin=subprocess.PIPE)
         self._thread = threading.Thread(target=self._pump, daemon=True)
         self._thread.start()
