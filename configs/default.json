@@ -25,6 +25,11 @@
         70,
         110,
         210
+      ],
+      "color": [
+        255,
+        255,
+        255
       ]
     },
     "accent": [
@@ -36,7 +41,9 @@
       55,
       60,
       78
-    ]
+    ],
+    "gap": 10,
+    "margin": 10
   },
   "layouts": {
     "default": {
@@ -67,7 +74,8 @@
           "action": [
             "key",
             "KEY_BRIGHTNESSDOWN"
-          ]
+          ],
+          "weight": 1.0
         },
         {
           "type": "button",
@@ -76,7 +84,8 @@
           "action": [
             "key",
             "KEY_BRIGHTNESSUP"
-          ]
+          ],
+          "weight": 1.0
         },
         {
           "type": "spacer",
@@ -89,7 +98,8 @@
           "action": [
             "key",
             "KEY_PREVIOUSSONG"
-          ]
+          ],
+          "weight": 1.0
         },
         {
           "type": "button",
@@ -104,7 +114,8 @@
           "action": [
             "key",
             "KEY_PLAYPAUSE"
-          ]
+          ],
+          "weight": 1.0
         },
         {
           "type": "button",
@@ -113,7 +124,8 @@
           "action": [
             "key",
             "KEY_NEXTSONG"
-          ]
+          ],
+          "weight": 1.0
         },
         {
           "type": "spacer",
@@ -126,7 +138,8 @@
           "action": [
             "key",
             "KEY_VOLUMEDOWN"
-          ]
+          ],
+          "weight": 1.0
         },
         {
           "type": "button",
@@ -135,7 +148,8 @@
           "action": [
             "key",
             "KEY_MUTE"
-          ]
+          ],
+          "weight": 1.0
         },
         {
           "type": "button",
@@ -144,7 +158,8 @@
           "action": [
             "key",
             "KEY_VOLUMEUP"
-          ]
+          ],
+          "weight": 1.0
         }
       ]
     },
@@ -157,7 +172,8 @@
           "action": [
             "key",
             "KEY_PREVIOUSSONG"
-          ]
+          ],
+          "weight": 1.0
         },
         {
           "type": "button",
@@ -172,7 +188,8 @@
           "action": [
             "key",
             "KEY_PLAYPAUSE"
-          ]
+          ],
+          "weight": 1.0
         },
         {
           "type": "button",
@@ -181,7 +198,8 @@
           "action": [
             "key",
             "KEY_NEXTSONG"
-          ]
+          ],
+          "weight": 1.0
         },
         {
           "type": "label",
@@ -206,7 +224,8 @@
           "action": [
             "key",
             "KEY_VOLUMEUP"
-          ]
+          ],
+          "weight": 1.0
         }
       ]
     }

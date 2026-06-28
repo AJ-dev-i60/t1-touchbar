@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>t1bar studio</title>
+<style>
+  :root { --bg:#0e1018; --panel:#171a24; --panel2:#1f2330; --line:#2a2f3e;
+          --text:#e6e8ef; --muted:#9aa0b4; --accent:#5aa0fa; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.4 system-ui,Segoe UI,Roboto,sans-serif;
+         background:var(--bg); color:var(--text); }
+  header { display:flex; align-items:center; gap:14px; padding:10px 16px;
+           background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:15px; margin:0; font-weight:600; letter-spacing:.3px; }
+  header .path { color:var(--muted); font-size:12px; }
+  header .grow { flex:1; }
+  .tabs { display:flex; gap:6px; }
+  .tab { padding:5px 12px; border-radius:7px; background:var(--panel2);
+         border:1px solid var(--line); cursor:pointer; color:var(--muted); }
+  .tab.active { color:var(--text); border-color:var(--accent); }
+  .toggle { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:12px; }
+  #preview-wrap { padding:22px 16px; background:#05060a; border-bottom:1px solid var(--line); }
+  #stage { position:relative; width:100%; max-width:1200px; margin:0 auto;
+           background:#000; border-radius:8px; overflow:hidden; aspect-ratio:2170/60; }
+  #preview { width:100%; height:100%; display:block; image-rendering:auto; }
+  .hit { position:absolute; top:0; bottom:0; cursor:pointer; }
+  .hit.sel { box-shadow: inset 0 0 0 2px var(--accent); border-radius:6px; }
+  main { display:flex; gap:0; }
+  #left { flex:1; padding:14px 16px; }
+  #right { width:320px; padding:14px 16px; border-left:1px solid var(--line);
+           background:var(--panel); min-height:60vh; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+  button.btn { background:var(--panel2); color:var(--text); border:1px solid var(--line);
+        padding:7px 11px; border-radius:7px; cursor:pointer; font-size:13px; }
+  button.btn:hover { border-color:var(--accent); }
+  button.btn.danger:hover { border-color:#e0556a; color:#ff9aa8; }
+  .items { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { padding:6px 10px; border-radius:7px; background:var(--panel2);
+          border:1px solid var(--line); cursor:pointer; font-size:12px; color:var(--muted); }
+  .chip.sel { color:var(--text); border-color:var(--accent); }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted);
+       margin:18px 0 8px; }
+  .field { display:flex; align-items:center; justify-content:space-between; gap:10px;
+           margin:8px 0; }
+  .field label { color:var(--muted); font-size:13px; }
+  .field input[type=text], .field input[type=number], .field select {
+     background:var(--bg); color:var(--text); border:1px solid var(--line);
+     border-radius:6px; padding:5px 8px; width:170px; }
+  .field input[type=color] { width:42px; height:28px; padding:0; border:1px solid var(--line);
+     border-radius:6px; background:var(--bg); }
+  .empty { color:var(--muted); font-size:13px; padding:20px 0; }
+  .swatchrow { display:flex; gap:8px; align-items:center; }
+  .reset { color:var(--muted); font-size:11px; cursor:pointer; text-decoration:underline; }
+</style>
+</head>
+<body>
+<header>
+  <h1>t1bar <span style="color:var(--accent)">studio</span></h1>
+  <span class="path" id="path"></span>
+  <div class="grow"></div>
+  <div class="tabs" id="tabs"></div>
+  <label class="toggle"><input type="checkbox" id="playing"> preview “playing”</label>
+</header>
+
+<div id="preview-wrap"><div id="stage"><img id="preview"><div id="hits"></div></div></div>
+
+<main>
+  <div id="left">
+    <div class="toolbar">
+      <button class="btn" data-add="button">+ Button</button>
+      <button class="btn" data-add="scrubber">+ Scrubber</button>
+      <button class="btn" data-add="label">+ Label</button>
+      <button class="btn" data-add="spacer">+ Spacer</button>
+      <span style="flex:1"></span>
+      <button class="btn" id="moveL">◀ Move</button>
+      <button class="btn" id="moveR">Move ▶</button>
+      <button class="btn danger" id="del">Delete</button>
+    </div>
+    <h2>Items in “<span id="curlayout"></span>”</h2>
+    <div class="items" id="items"></div>
+    <h2>Theme</h2>
+    <div id="theme"></div>
+  </div>
+  <div id="right">
+    <h2>Properties</h2>
+    <div id="props"><div class="empty">Select an item (click it on the bar above, or a chip).</div></div>
+  </div>
+</main>
+
+<script>
+const ICONS = ["", "play","pause","prev","next","brightness_up","brightness_down",
+  "volume_up","volume_down","volume_mute","fullscreen","cc"];
+const KEYS = ["KEY_ESC","KEY_PLAYPAUSE","KEY_NEXTSONG","KEY_PREVIOUSSONG",
+  "KEY_VOLUMEUP","KEY_VOLUMEDOWN","KEY_MUTE","KEY_BRIGHTNESSUP","KEY_BRIGHTNESSDOWN",
+  "KEY_KBDILLUMUP","KEY_KBDILLUMDOWN","KEY_F1","KEY_F2","KEY_F3","KEY_F4","KEY_F5",
+  "KEY_F6","KEY_F7","KEY_F8","KEY_F9","KEY_F10","KEY_F11","KEY_F12"];
+
+let cfg=null, layouts=[], cur=null, sel=null, saveTimer=null;
+
+const $ = s => document.querySelector(s);
+const rgb2hex = a => a ? "#"+a.map(v=>v.toString(16).padStart(2,"0")).join("") : "#000000";
+const hex2rgb = h => [1,3,5].map(i=>parseInt(h.substr(i,2),16));
+
+async function load(){
+  const s = await (await fetch("/api/state")).json();
+  cfg=s.config; layouts=s.layouts; cur=cur&&layouts.includes(cur)?cur:layouts[0];
+  $("#path").textContent=s.path;
+  renderTabs(); renderTheme(); renderItems(); renderProps(); refreshPreview();
+}
+function renderTabs(){
+  const t=$("#tabs"); t.innerHTML="";
+  layouts.forEach(name=>{
+    const d=document.createElement("div"); d.className="tab"+(name===cur?" active":"");
+    d.textContent=name; d.onclick=()=>{cur=name; sel=null; renderTabs(); renderItems(); renderProps(); refreshPreview();};
+    t.appendChild(d);
+  });
+}
+function items(){ return cfg.layouts[cur].items; }
+function renderItems(){
+  $("#curlayout").textContent=cur;
+  const box=$("#items"); box.innerHTML="";
+  items().forEach((it,i)=>{
+    const c=document.createElement("div"); c.className="chip"+(i===sel?" sel":"");
+    c.textContent=(it.type||"button")+(it.id?(" · "+it.id):"");
+    c.onclick=()=>{sel=i; renderItems(); renderProps(); markHits();};
+    box.appendChild(c);
+  });
+}
+function refreshPreview(){
+  const playing=$("#playing").checked?1:0;
+  $("#preview").src=`/api/preview?layout=${encodeURIComponent(cur)}&playing=${playing}&t=${Date.now()}`;
+  fetch(`/api/boxes?layout=${encodeURIComponent(cur)}`).then(r=>r.json()).then(b=>{
+    const hits=$("#hits"); hits.innerHTML="";
+    b.items.forEach(it=>{
+      const d=document.createElement("div"); d.className="hit";
+      d.style.left=(it.x0/b.width*100)+"%"; d.style.width=((it.x1-it.x0)/b.width*100)+"%";
+      d.dataset.index=it.index;
+      d.onclick=()=>{sel=it.index; renderItems(); renderProps(); markHits();};
+      hits.appendChild(d);
+    });
+    markHits();
+  });
+}
+function markHits(){ document.querySelectorAll(".hit").forEach(h=>
+  h.classList.toggle("sel", +h.dataset.index===sel)); }
+
+function field(label, el){
+  const f=document.createElement("div"); f.className="field";
+  const l=document.createElement("label"); l.textContent=label; f.appendChild(l); f.appendChild(el); return f;
+}
+function colorField(label, obj, key, fallback){
+  const wrap=document.createElement("div"); wrap.className="swatchrow";
+  const inp=document.createElement("input"); inp.type="color";
+  inp.value=rgb2hex(obj[key]||fallback);
+  inp.oninput=()=>{ obj[key]=hex2rgb(inp.value); save(); };
+  wrap.appendChild(inp);
+  if(obj[key]){ const r=document.createElement("span"); r.className="reset"; r.textContent="clear";
+    r.onclick=()=>{ delete obj[key]; save(); renderProps(); }; wrap.appendChild(r); }
+  return field(label, wrap);
+}
+function textField(label, obj, key, ph){
+  const i=document.createElement("input"); i.type="text"; i.value=obj[key]||""; i.placeholder=ph||"";
+  i.oninput=()=>{ if(i.value==="") delete obj[key]; else obj[key]=i.value; save(); };
+  return field(label,i);
+}
+function numField(label, obj, key, val){
+  const i=document.createElement("input"); i.type="number"; i.step="0.1"; i.value=obj[key]??val;
+  i.oninput=()=>{ obj[key]=parseFloat(i.value)||val; save(); };
+  return field(label,i);
+}
+function selectField(label, val, opts, cb){
+  const s=document.createElement("select");
+  opts.forEach(o=>{ const op=document.createElement("option"); op.value=o; op.textContent=o||"(none)"; s.appendChild(op); });
+  s.value=val||""; s.onchange=()=>cb(s.value); return field(label,s);
+}
+
+function renderProps(){
+  const p=$("#props"); p.innerHTML="";
+  if(sel===null||!items()[sel]){ p.innerHTML='<div class="empty">Select an item (click it on the bar, or a chip).</div>'; return; }
+  const it=items()[sel];
+  p.appendChild(selectField("Type", it.type||"button", ["button","scrubber","label","spacer"], v=>{ it.type=v; save(); renderProps(); renderItems(); }));
+  p.appendChild(textField("id", it, "id", "unique name"));
+  p.appendChild(numField("weight", it, "weight", 1));
+  const t=it.type||"button";
+  if(t==="button"){
+    p.appendChild(textField("label", it, "label", "text (if no icon)"));
+    p.appendChild(selectField("icon", it.icon||"", ICONS, v=>{ if(v) it.icon=v; else delete it.icon; save(); renderProps(); }));
+    p.appendChild(selectField("dynamic", it.dynamic||"", ["","play_pause"], v=>{ if(v) it.dynamic=v; else delete it.dynamic; save(); }));
+    p.appendChild(colorField("fill", it, "fill", cfg.theme.button.fill));
+    p.appendChild(colorField("color", it, "color", cfg.theme.button.text));
+    actionEditor(p, it);
+  } else if(t==="scrubber"){
+    p.appendChild(selectField("source", it.source||"", ["","media_position"], v=>{ if(v) it.source=v; else delete it.source; save(); }));
+    actionEditor(p, it);
+  } else if(t==="label"){
+    p.appendChild(textField("label", it, "label", "static text"));
+    p.appendChild(selectField("source", it.source||"", ["","media_title","media_artist"], v=>{ if(v) it.source=v; else delete it.source; save(); }));
+    p.appendChild(colorField("color", it, "color", cfg.theme.button.text));
+    p.appendChild(numField("font_size", it, "font_size", cfg.theme.button.font_size));
+  }
+}
+function actionEditor(p, it){
+  const a=it.action||[];
+  const type=a[0]||"";
+  p.appendChild(selectField("action", type, ["","key","media","seek","command","layout"], v=>{
+    if(!v) delete it.action; else if(v==="key") it.action=["key", a[1]||"KEY_ESC"];
+    else if(v==="media") it.action=["media","play-pause"]; else if(v==="seek") it.action=["seek"];
+    else if(v==="command") it.action=["command",""]; else if(v==="layout") it.action=["layout", layouts[0]];
+    save(); renderProps();
+  }));
+  if(type==="key") p.appendChild(selectField("key", a[1], KEYS, v=>{ it.action=["key",v]; save(); }));
+  else if(type==="media") p.appendChild(selectField("verb", a[1]||"play-pause", ["play-pause","play","pause","next","previous","stop"], v=>{ it.action=["media",v]; save(); }));
+  else if(type==="command"){ const i=document.createElement("input"); i.type="text"; i.value=(a.slice(1)).join(" "); i.placeholder="cmd arg arg";
+     i.oninput=()=>{ it.action=["command",...i.value.split(" ").filter(Boolean)]; save(); }; p.appendChild(field("command", i)); }
+  else if(type==="layout") p.appendChild(selectField("to", a[1], layouts, v=>{ it.action=["layout",v]; save(); }));
+}
+
+function renderTheme(){
+  const t=$("#theme"); t.innerHTML="";
+  t.appendChild(colorField("background", cfg.theme, "background", [8,10,18]));
+  t.appendChild(colorField("button fill", cfg.theme.button, "fill", [38,42,58]));
+  t.appendChild(colorField("button text", cfg.theme.button, "text", [232,234,240]));
+  t.appendChild(colorField("pressed", cfg.theme.pressed, "fill", [70,110,210]));
+  t.appendChild(colorField("accent", cfg.theme, "accent", [90,170,250]));
+  t.appendChild(numField("radius", cfg.theme.button, "radius", 12));
+}
+
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(async ()=>{
+    await fetch("/api/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(cfg)});
+    refreshPreview();
+  }, 120);
+}
+
+document.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>{
+  const t=b.dataset.add;
+  const it={button:{type:"button",id:"new",label:"new",action:["key","KEY_ESC"]},
+            scrubber:{type:"scrubber",id:"seek",weight:4,source:"media_position",action:["seek"]},
+            label:{type:"label",id:"label",label:"text",weight:2},
+            spacer:{type:"spacer",weight:0.5}}[t];
+  items().push(it); sel=items().length-1; save(); renderItems(); renderProps();
+});
+$("#del").onclick=()=>{ if(sel!==null){ items().splice(sel,1); sel=null; save(); renderItems(); renderProps(); } };
+$("#moveL").onclick=()=>move(-1); $("#moveR").onclick=()=>move(1);
+function move(d){ if(sel===null) return; const j=sel+d; if(j<0||j>=items().length) return;
+  const a=items(); [a[sel],a[j]]=[a[j],a[sel]]; sel=j; save(); renderItems(); renderProps(); }
+$("#playing").onchange=refreshPreview;
+
+load();
+</script>
+</body>
+</html>

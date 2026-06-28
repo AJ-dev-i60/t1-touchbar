@@ -23,7 +23,19 @@ def main(argv=None):
     p.add_argument("--height", type=int, default=60)
     p.add_argument("--playing", action="store_true", help="fake media-playing state")
 
+    e = sub.add_parser("edit", help="open the web editor (live-edits the config)")
+    e.add_argument("-c", "--config", required=True)
+    e.add_argument("--port", type=int, default=8731)
+    e.add_argument("--no-browser", action="store_true")
+
     args = ap.parse_args(argv)
+
+    if args.cmd == "edit":
+        from .editor import Editor
+        if not os.path.exists(args.config):
+            ap.error(f"config not found: {args.config}")
+        Editor(args.config).serve(port=args.port, open_browser=not args.no_browser)
+        return 0
 
     if args.cmd == "run":
         if os.geteuid() != 0:
