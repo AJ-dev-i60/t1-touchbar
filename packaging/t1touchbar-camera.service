@@ -6,6 +6,8 @@ Documentation=https://github.com/AJ-dev-i60/t1-touchbar
 # tries if the strip is absent — on-demand will simply wait for config 2.
 After=t1touchbar-strip.service
 Wants=t1touchbar-strip.service
+# Be watching the loopback before the greeter so Howdy face-login works at login.
+Before=display-manager.service
 
 [Service]
 Type=simple
