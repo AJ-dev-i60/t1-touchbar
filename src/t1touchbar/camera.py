@@ -248,7 +248,7 @@ def find_loopback_by_label(label=DEFAULT_LABEL):
     return None
 
 
-def ensure_loopback(label=DEFAULT_LABEL, exclusive=False):
+def ensure_loopback(label=DEFAULT_LABEL, exclusive=False, size=None):
     """Return a dedicated loopback ``/dev/videoN``, creating one if needed.
 
     Uses the v4l2loopback control device with ``output_nr=-1`` (auto-assign) so it
@@ -256,6 +256,11 @@ def ensure_loopback(label=DEFAULT_LABEL, exclusive=False):
     the ``v4l2loopback`` module loaded and root. ``exclusive=False`` (default) makes
     a non-exclusive node so consumers can open it before a writer exists (required
     for on-demand); set True only if a consumer app demands capture-exclusive caps.
+
+    ``size="WxH"`` pins the node's resolution (min==max). This matters for on-demand:
+    a consumer opens and negotiates a format *before* the writer exists, so without a
+    pinned resolution it can lock onto the wrong size and get garbled frames once the
+    writer pushes a different one.
     """
     existing = find_loopback_by_label(label)
     if existing:
@@ -263,20 +268,43 @@ def ensure_loopback(label=DEFAULT_LABEL, exclusive=False):
     if not os.path.exists(_CTL):
         raise RuntimeError("v4l2loopback control device missing; is the module "
                            "loaded? (modprobe v4l2loopback)")
+    if size:
+        w, h = (int(x) for x in size.split("x"))
+        min_w = max_w = w
+        min_h = max_h = h
+    else:
+        min_w, max_w, min_h, max_h = 2, 1920, 2, 1080
     cfg = struct.pack(_CFG_FMT, -1, 0, label.encode()[:31],
-                      2, 1920, 2, 1080, 4, 10, 0, 0 if exclusive else 1)
+                      min_w, max_w, min_h, max_h, 4, 10, 0, 0 if exclusive else 1)
     fd = os.open(_CTL, os.O_RDWR)
     try:
         nr = fcntl.ioctl(fd, _CTL_ADD, bytearray(cfg))
     finally:
         os.close(fd)
     # settle so the /dev node + sysfs name appear
+    path = None
     for _ in range(50):
         path = find_loopback_by_label(label) or f"/dev/video{nr}"
         if os.path.exists(path):
-            return path
+            break
         time.sleep(0.05)
-    return f"/dev/video{nr}"
+    if size and path:
+        _pin_format(path, size)
+    return path or f"/dev/video{nr}"
+
+
+def _pin_format(path, size):
+    """Set the node's pixel format to YUYV at `size` so a reader that opens before
+    the writer negotiates the right format. Best-effort (needs v4l2-ctl)."""
+    w, h = size.split("x")
+    subprocess.run(["v4l2-ctl", "-d", path,
+                    "--set-fmt-video-out",
+                    f"width={w},height={h},pixelformat=YUYV"],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    subprocess.run(["v4l2-ctl", "-d", path,
+                    "--set-fmt-video",
+                    f"width={w},height={h},pixelformat=YUYV"],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
 
 def remove_loopback(path):
@@ -422,18 +450,86 @@ def _device_openers(devpath, exclude_pids=()):
     return pids
 
 
-class OnDemandBridge:
-    """Keep a (non-exclusive) loopback node present, but only run the camera +
-    ffmpeg while some app actually has the node open — so an idle desktop pays
-    nothing. Built for the boot service: with the strip already holding config 2,
-    a consumer's open triggers a fast IF1 attach (no config switch).
+class _DecodePipeline:
+    """USB camera H.264 -> ffmpeg decode -> raw YUYV frames (read_frame). Runs only
+    while a consumer is active."""
 
-    Set ``manage_config=False`` (default) when the strip owns config 2; True makes
-    it a standalone camera that switches config per session (bar blanks while used).
+    def __init__(self, size, manage_config, manage_modules):
+        self.size = size
+        self.manage_config = manage_config
+        self.manage_modules = manage_modules
+        self._cam = None
+        self._ff = None
+
+    def start(self):
+        import threading
+        self._cam = Camera(size=self.size, manage_config=self.manage_config,
+                           manage_modules=self.manage_modules).open()
+        self._ff = subprocess.Popen(
+            ["ffmpeg", "-hide_banner", "-loglevel", "error",
+             "-use_wallclock_as_timestamps", "1",
+             "-fflags", "nobuffer", "-flags", "low_delay",
+             "-f", "h264", "-i", "pipe:0",
+             "-an", "-f", "rawvideo", "-pix_fmt", "yuyv422",
+             "-fps_mode", "passthrough", "pipe:1"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        threading.Thread(target=self._feed, daemon=True).start()
+
+    def _feed(self):
+        try:
+            for chunk in self._cam.stream():
+                try:
+                    self._ff.stdin.write(chunk)
+                except (BrokenPipeError, ValueError):
+                    break
+        finally:
+            try:
+                self._ff.stdin.close()
+            except Exception:
+                pass
+
+    def read_frame(self, n):
+        """Read exactly one YUYV frame (n bytes) from the decoder; None on EOF."""
+        buf = self._ff.stdout.read(n)
+        return buf if buf and len(buf) == n else None
+
+    def pids(self):
+        return [self._ff.pid] if self._ff else []
+
+    def stop(self):
+        if self._cam:
+            self._cam.stop()
+        if self._ff:
+            for f in (self._ff.stdin, self._ff.stdout):
+                try:
+                    f.close()
+                except Exception:
+                    pass
+            try:
+                self._ff.terminate()
+                self._ff.wait(timeout=3)
+            except Exception:
+                pass
+        if self._cam:
+            self._cam.close()
+
+
+class OnDemandBridge:
+    """Expose the camera on a loopback node, decoding only while an app is watching.
+
+    A single **persistent** ffmpeg stays attached as the node's writer, fed raw YUYV
+    from this process — so the node advertises a stable 1280x720 YUYV format from the
+    start (no reader-first race) and always presents capture caps. When idle we push a
+    black frame ~2x/s (near-zero CPU); when a consumer opens the node we spin up the
+    USB camera + H.264 decode and relay real frames, tearing it back down when they
+    leave. So the expensive decode runs only while the webcam is actually in use.
+
+    ``manage_config=False`` (default): the strip owns config 2 (boot service). True
+    makes it standalone (switches config per session; the bar blanks while in use).
     """
 
     def __init__(self, device=None, size="1280x720", label=DEFAULT_LABEL,
-                 manage_config=False, manage_modules=False, grace=2.0, poll=0.3):
+                 manage_config=False, manage_modules=False, grace=1.5, poll=0.3):
         self.device = device
         self.size = size
         self.label = label
@@ -443,41 +539,99 @@ class OnDemandBridge:
         self.poll = poll
 
     def run(self, should_stop):
-        node = self.device or ensure_loopback(self.label, exclusive=False)
+        node = self.device or ensure_loopback(self.label, exclusive=False,
+                                              size=self.size)
         self.device = node
-        print(f"[camera] on-demand: watching {node} (streams only when opened)",
-              flush=True)
-        bridge = None
+        w, h = (int(x) for x in self.size.split("x"))
+        frame_bytes = w * h * 2
+        black = bytes([0, 128]) * (w * h)        # YUYV black (Y=0, chroma=128)
+
+        persistent = subprocess.Popen(
+            ["ffmpeg", "-hide_banner", "-loglevel", "error",
+             "-f", "rawvideo", "-pixel_format", "yuyv422",
+             "-video_size", f"{w}x{h}", "-framerate", "30", "-i", "pipe:0",
+             "-an", "-f", "v4l2", node],
+            stdin=subprocess.PIPE)
+        print(f"[camera] on-demand: persistent writer on {node} "
+              f"(decode runs only while an app is watching)", flush=True)
+
+        def put_black(n=1):
+            try:
+                for _ in range(n):
+                    persistent.stdin.write(black)
+                persistent.stdin.flush()
+                return True
+            except (BrokenPipeError, ValueError):
+                return False
+
+        put_black(3)            # prime the node so it opens with the right format
+
+        cam = None
         idle_since = None
-        while not should_stop():
-            ff_pids = (bridge._ff.pid,) if (bridge and bridge._ff) else ()
-            consumers = _device_openers(node, exclude_pids=ff_pids)
-            if consumers and bridge is None:
-                print(f"[camera] consumer {sorted(consumers)} opened {node} → streaming",
-                      flush=True)
-                bridge = LoopbackBridge(device=node, size=self.size, label=self.label,
-                                        manage_config=self.manage_config,
-                                        manage_modules=self.manage_modules)
-                try:
-                    bridge.start()
-                except Exception as e:
-                    print(f"[camera] start failed (is config 2 held by the strip?): {e}",
-                          flush=True)
-                    bridge = None
-                idle_since = None
-            elif consumers and bridge is not None:
-                idle_since = None
-            elif not consumers and bridge is not None:
-                if idle_since is None:
-                    idle_since = time.monotonic()
-                elif time.monotonic() - idle_since >= self.grace:
-                    print("[camera] no consumers → stopping stream", flush=True)
-                    bridge.stop()
-                    bridge = None
-                    idle_since = None
-            time.sleep(self.poll)
-        if bridge:
-            bridge.stop()
+        last_check = 0.0
+        last_black = 0.0
+        # Idle heartbeat is slow (a black frame every few seconds) so the writer is
+        # ~0% CPU when nobody's watching; HEARTBEAT seconds between frames.
+        HEARTBEAT = 3.0
+        try:
+            while not should_stop():
+                now = time.monotonic()
+                if now - last_check >= self.poll:
+                    last_check = now
+                    excl = [persistent.pid] + (cam.pids() if cam else [])
+                    consumers = _device_openers(node, exclude_pids=excl)
+                    if consumers and cam is None:
+                        print(f"[camera] consumer {sorted(consumers)} → streaming",
+                              flush=True)
+                        try:
+                            cam = _DecodePipeline(self.size, self.manage_config,
+                                                  self.manage_modules)
+                            cam.start()
+                        except Exception as e:
+                            print(f"[camera] start failed (config 2 held?): {e}",
+                                  flush=True)
+                            cam = None
+                        idle_since = None
+                    elif consumers and cam is not None:
+                        idle_since = None
+                    elif not consumers and cam is not None:
+                        if idle_since is None:
+                            idle_since = now
+                        elif now - idle_since >= self.grace:
+                            print("[camera] no consumers → idle", flush=True)
+                            cam.stop()
+                            cam = None
+                            idle_since = None
+                            put_black(2)              # clear the last camera frame
+                            last_black = time.monotonic()
+
+                if cam is not None:
+                    frame = cam.read_frame(frame_bytes)
+                    if frame is None:                 # decoder ended/stalled
+                        time.sleep(0.01)
+                    else:
+                        try:
+                            persistent.stdin.write(frame)
+                        except (BrokenPipeError, ValueError):
+                            break
+                else:
+                    if now - last_black >= HEARTBEAT:
+                        if not put_black():
+                            break
+                        last_black = now
+                    time.sleep(0.05)
+        finally:
+            if cam:
+                cam.stop()
+            try:
+                persistent.stdin.close()
+            except Exception:
+                pass
+            try:
+                persistent.terminate()
+                persistent.wait(timeout=3)
+            except Exception:
+                pass
 
 
 # -- CLI -------------------------------------------------------------------------
@@ -514,7 +668,8 @@ def main(argv=None):
         signal.signal(s, lambda *_: stop.update(v=True))
 
     if args.on_demand:
-        node = args.device or ensure_loopback(args.label, exclusive=False)
+        node = args.device or ensure_loopback(args.label, exclusive=False,
+                                              size=args.size)
         if args.print_device:
             print(f"DEVICE={node}", flush=True)
         OnDemandBridge(device=node, size=args.size, label=args.label,
