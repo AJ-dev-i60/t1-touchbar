@@ -213,9 +213,13 @@ class Camera:
 _CTL = "/dev/v4l2loopback"
 # struct v4l2_loopback_config (v4l2loopback 0.15): s32 output_nr; s32 unused;
 #   char card_label[32]; u32 min_w,max_w,min_h,max_h; s32 max_buffers,max_openers,
-#   debug, announce_all_caps.  announce_all_caps == !exclusive_caps; we want
-#   exclusive caps (=> 0) so capture apps (OpenCV/Howdy, Chrome) treat the node as a
-#   pure capture device — otherwise they get a "select() timeout".
+#   debug, announce_all_caps.  announce_all_caps == !exclusive_caps.
+#   - non-exclusive (announce_all_caps=1): a consumer can open the node even with no
+#     writer present (it block-waits), which on-demand streaming needs. OpenCV/Howdy
+#     read it fine. Default here.
+#   - exclusive (=0): node presents capture-only, which a few apps (notably Chrome)
+#     require — but a consumer CANNOT open it until a writer is already streaming, so
+#     it's unsuitable for on-demand.
 _CFG_FMT = "ii32sIIIIiiii"
 _MAGIC = ord("~")              # V4L2LOOPBACK_CTL_IOCTLMAGIC
 
@@ -244,12 +248,14 @@ def find_loopback_by_label(label=DEFAULT_LABEL):
     return None
 
 
-def ensure_loopback(label=DEFAULT_LABEL):
+def ensure_loopback(label=DEFAULT_LABEL, exclusive=False):
     """Return a dedicated loopback ``/dev/videoN``, creating one if needed.
 
     Uses the v4l2loopback control device with ``output_nr=-1`` (auto-assign) so it
     never collides with an existing node (e.g. another app's virtual camera). Needs
-    the ``v4l2loopback`` module loaded and root.
+    the ``v4l2loopback`` module loaded and root. ``exclusive=False`` (default) makes
+    a non-exclusive node so consumers can open it before a writer exists (required
+    for on-demand); set True only if a consumer app demands capture-exclusive caps.
     """
     existing = find_loopback_by_label(label)
     if existing:
@@ -258,7 +264,7 @@ def ensure_loopback(label=DEFAULT_LABEL):
         raise RuntimeError("v4l2loopback control device missing; is the module "
                            "loaded? (modprobe v4l2loopback)")
     cfg = struct.pack(_CFG_FMT, -1, 0, label.encode()[:31],
-                      2, 1920, 2, 1080, 4, 10, 0, 0)   # last 0 = exclusive caps
+                      2, 1920, 2, 1080, 4, 10, 0, 0 if exclusive else 1)
     fd = os.open(_CTL, os.O_RDWR)
     try:
         nr = fcntl.ioctl(fd, _CTL_ADD, bytearray(cfg))
@@ -283,7 +289,8 @@ def remove_loopback(path):
         return
     fd = os.open(_CTL, os.O_RDWR)
     try:
-        fcntl.ioctl(fd, _CTL_REMOVE, nr)
+        # CTL_REMOVE is _IOW(..., __u32): pass the device number as a 4-byte buffer.
+        fcntl.ioctl(fd, _CTL_REMOVE, struct.pack("i", nr))
     except OSError:
         pass
     finally:
@@ -380,6 +387,99 @@ class LoopbackBridge:
         self.stop()
 
 
+# -- on-demand (stream only while a consumer has the node open) ------------------
+def _device_openers(devpath, exclude_pids=()):
+    """PIDs (excluding exclude_pids) that currently hold devpath open. Matches by
+    device number (st_rdev), so it also catches consumers that opened a symlink
+    (e.g. /dev/t1-camera). Root-only; cheap enough to poll a few times a second."""
+    try:
+        target_rdev = os.stat(devpath).st_rdev
+    except OSError:
+        return set()
+    exclude = set(exclude_pids)
+    pids = set()
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        pid = int(entry)
+        if pid in exclude:
+            continue
+        fdd = f"/proc/{entry}/fd"
+        try:
+            names = os.listdir(fdd)
+        except OSError:
+            continue
+        for fd in names:
+            p = f"{fdd}/{fd}"
+            try:
+                if not os.readlink(p).startswith("/dev/"):
+                    continue
+                if os.stat(p).st_rdev == target_rdev:
+                    pids.add(pid)
+                    break
+            except OSError:
+                continue
+    return pids
+
+
+class OnDemandBridge:
+    """Keep a (non-exclusive) loopback node present, but only run the camera +
+    ffmpeg while some app actually has the node open — so an idle desktop pays
+    nothing. Built for the boot service: with the strip already holding config 2,
+    a consumer's open triggers a fast IF1 attach (no config switch).
+
+    Set ``manage_config=False`` (default) when the strip owns config 2; True makes
+    it a standalone camera that switches config per session (bar blanks while used).
+    """
+
+    def __init__(self, device=None, size="1280x720", label=DEFAULT_LABEL,
+                 manage_config=False, manage_modules=False, grace=2.0, poll=0.3):
+        self.device = device
+        self.size = size
+        self.label = label
+        self.manage_config = manage_config
+        self.manage_modules = manage_modules
+        self.grace = grace
+        self.poll = poll
+
+    def run(self, should_stop):
+        node = self.device or ensure_loopback(self.label, exclusive=False)
+        self.device = node
+        print(f"[camera] on-demand: watching {node} (streams only when opened)",
+              flush=True)
+        bridge = None
+        idle_since = None
+        while not should_stop():
+            ff_pids = (bridge._ff.pid,) if (bridge and bridge._ff) else ()
+            consumers = _device_openers(node, exclude_pids=ff_pids)
+            if consumers and bridge is None:
+                print(f"[camera] consumer {sorted(consumers)} opened {node} → streaming",
+                      flush=True)
+                bridge = LoopbackBridge(device=node, size=self.size, label=self.label,
+                                        manage_config=self.manage_config,
+                                        manage_modules=self.manage_modules)
+                try:
+                    bridge.start()
+                except Exception as e:
+                    print(f"[camera] start failed (is config 2 held by the strip?): {e}",
+                          flush=True)
+                    bridge = None
+                idle_since = None
+            elif consumers and bridge is not None:
+                idle_since = None
+            elif not consumers and bridge is not None:
+                if idle_since is None:
+                    idle_since = time.monotonic()
+                elif time.monotonic() - idle_since >= self.grace:
+                    print("[camera] no consumers → stopping stream", flush=True)
+                    bridge.stop()
+                    bridge = None
+                    idle_since = None
+            time.sleep(self.poll)
+        if bridge:
+            bridge.stop()
+
+
 # -- CLI -------------------------------------------------------------------------
 def main(argv=None):
     """``t1touchbar-camera`` — bridge the config-2 camera to a v4l2loopback node."""
@@ -401,10 +501,27 @@ def main(argv=None):
                     help="delete the created loopback node on exit")
     ap.add_argument("--print-device", action="store_true",
                     help="print the loopback path on a line prefixed 'DEVICE='")
+    ap.add_argument("--on-demand", action="store_true",
+                    help="stream only while an app has the loopback open (idle pays "
+                         "nothing); implies the node is non-exclusive")
     args = ap.parse_args(argv)
 
     if os.geteuid() != 0:
         ap.error("must run as root (USB + v4l2loopback control)")
+
+    stop = {"v": False}
+    for s in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(s, lambda *_: stop.update(v=True))
+
+    if args.on_demand:
+        node = args.device or ensure_loopback(args.label, exclusive=False)
+        if args.print_device:
+            print(f"DEVICE={node}", flush=True)
+        OnDemandBridge(device=node, size=args.size, label=args.label,
+                       manage_config=not args.keep_config,
+                       manage_modules=not args.keep_config).run(lambda: stop["v"])
+        print("[camera] on-demand stopped", flush=True)
+        return 0
 
     bridge = LoopbackBridge(device=args.device, size=args.size, label=args.label,
                             manage_config=not args.keep_config,
@@ -414,9 +531,6 @@ def main(argv=None):
         print(f"DEVICE={path}", flush=True)
     print(f"[camera] streaming {args.size} -> {path}  (Ctrl-C to stop)", flush=True)
 
-    stop = {"v": False}
-    for s in (signal.SIGINT, signal.SIGTERM):
-        signal.signal(s, lambda *_: stop.update(v=True))
     try:
         while not stop["v"]:
             time.sleep(0.2)
