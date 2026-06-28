@@ -9,6 +9,8 @@ The runtime renders it on the bar, routes touches to actions, switches layouts b
 on context (e.g. media playing), and **hot-reloads the config so your edits appear on
 the bar live** — change a button's colour and watch it update in real time.
 
+> Requires **GTK4 + libadwaita + PyGObject** (system packages: `python3-gi gir1.2-gtk-4.0 gir1.2-adw-1`) for the native editor.
+
 ## Run
 
 ```bash

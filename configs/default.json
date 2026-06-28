@@ -75,7 +75,7 @@
             "key",
             "KEY_BRIGHTNESSDOWN"
           ],
-          "weight": 1.0
+          "weight": 1
         },
         {
           "type": "button",
@@ -85,7 +85,7 @@
             "key",
             "KEY_BRIGHTNESSUP"
           ],
-          "weight": 1.0
+          "weight": 1
         },
         {
           "type": "spacer",
@@ -99,7 +99,7 @@
             "key",
             "KEY_PREVIOUSSONG"
           ],
-          "weight": 1.0
+          "weight": 1
         },
         {
           "type": "button",
@@ -115,7 +115,7 @@
             "key",
             "KEY_PLAYPAUSE"
           ],
-          "weight": 1.0
+          "weight": 1
         },
         {
           "type": "button",
@@ -125,7 +125,7 @@
             "key",
             "KEY_NEXTSONG"
           ],
-          "weight": 1.0
+          "weight": 1
         },
         {
           "type": "spacer",
@@ -149,7 +149,7 @@
             "key",
             "KEY_MUTE"
           ],
-          "weight": 1.0
+          "weight": 1
         },
         {
           "type": "button",
@@ -159,7 +159,15 @@
             "key",
             "KEY_VOLUMEUP"
           ],
-          "weight": 1.0
+          "weight": 1
+        },
+        {
+          "type": "spacer",
+          "weight": 0.5
+        },
+        {
+          "type": "spacer",
+          "weight": 0.5
         }
       ]
     },
@@ -173,7 +181,7 @@
             "key",
             "KEY_PREVIOUSSONG"
           ],
-          "weight": 1.0
+          "weight": 1
         },
         {
           "type": "button",
@@ -189,7 +197,7 @@
             "key",
             "KEY_PLAYPAUSE"
           ],
-          "weight": 1.0
+          "weight": 1
         },
         {
           "type": "button",
@@ -199,7 +207,7 @@
             "key",
             "KEY_NEXTSONG"
           ],
-          "weight": 1.0
+          "weight": 1
         },
         {
           "type": "label",
@@ -224,6 +232,22 @@
           "action": [
             "key",
             "KEY_VOLUMEUP"
+          ],
+          "weight": 1
+        },
+        {
+          "type": "button",
+          "id": "new",
+          "label": "new",
+          "action": [
+            "key",
+            "KEY_ESC"
+          ],
+          "icon": "volume_down",
+          "fill": [
+            62,
+            58,
+            40
           ],
           "weight": 1.0
         }
