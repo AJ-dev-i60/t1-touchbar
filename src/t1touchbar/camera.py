@@ -202,11 +202,21 @@ class Camera:
 
 # -- v4l2loopback node management ------------------------------------------------
 _CTL = "/dev/v4l2loopback"
-_CTL_ADD, _CTL_REMOVE = 0x4C80, 0x4C81
-# struct v4l2_loopback_config (v4l2loopback >= 0.12):
-#   int output_nr; int unused; char card_label[32];
-#   uint min_w,max_w,min_h,max_h; int max_buffers,max_openers,debug;
-_CFG_FMT = "ii32sIIIIiii"
+# struct v4l2_loopback_config (v4l2loopback 0.15): s32 output_nr; s32 unused;
+#   char card_label[32]; u32 min_w,max_w,min_h,max_h; s32 max_buffers,max_openers,
+#   debug, announce_all_caps.  announce_all_caps == !exclusive_caps; we want
+#   exclusive caps (=> 0) so capture apps (OpenCV/Howdy, Chrome) treat the node as a
+#   pure capture device — otherwise they get a "select() timeout".
+_CFG_FMT = "ii32sIIIIiiii"
+_MAGIC = ord("~")              # V4L2LOOPBACK_CTL_IOCTLMAGIC
+
+
+def _iow(nr, size):            # _IOW(magic, nr, size), Linux asm-generic encoding
+    return (1 << 30) | (size << 16) | (_MAGIC << 8) | nr
+
+
+_CTL_ADD = _iow(1, struct.calcsize(_CFG_FMT))
+_CTL_REMOVE = _iow(2, 4)
 
 
 def find_loopback_by_label(label=DEFAULT_LABEL):
@@ -239,7 +249,7 @@ def ensure_loopback(label=DEFAULT_LABEL):
         raise RuntimeError("v4l2loopback control device missing; is the module "
                            "loaded? (modprobe v4l2loopback)")
     cfg = struct.pack(_CFG_FMT, -1, 0, label.encode()[:31],
-                      2, 1920, 2, 1080, 4, 10, 0)
+                      2, 1920, 2, 1080, 4, 10, 0, 0)   # last 0 = exclusive caps
     fd = os.open(_CTL, os.O_RDWR)
     try:
         nr = fcntl.ioctl(fd, _CTL_ADD, bytearray(cfg))
