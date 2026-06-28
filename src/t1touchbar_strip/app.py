@@ -33,6 +33,18 @@ class StripApp:
         print(f"[strip] action: {action}", flush=True)
 
     def run(self):
+        import signal
+        # Stop cleanly on SIGTERM (systemd stop) and SIGINT (Ctrl-C) alike — both
+        # set a flag the loop checks, so the `with Device()` block always exits and
+        # restores config 1. Without a SIGTERM handler the default action kills the
+        # process outright and the bar is left stranded in config 2.
+        self._stop = False
+
+        def _on_signal(*_):
+            self._stop = True
+        signal.signal(signal.SIGINT, _on_signal)
+        signal.signal(signal.SIGTERM, _on_signal)
+
         with Device() as bar:
             w, h = bar.width, bar.height
             if self.show_welcome:
@@ -49,14 +61,12 @@ class StripApp:
             print(f"[strip] control strip ready ({w}x{h}). Hold Fn for F-keys. Ctrl-C to quit.",
                   flush=True)
             try:
-                while True:
+                while not self._stop:
                     if self.dirty:
                         self.dirty = False
                         bar.blit(render.render(L.LAYOUTS[self.current], w, h,
                                                self.pressed, self.playing))
                     time.sleep(0.02)
-            except KeyboardInterrupt:
-                pass
             finally:
                 tr.stop()
                 fn.stop()

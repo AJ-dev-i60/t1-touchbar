@@ -1,0 +1,8 @@
+# Stable symlink for the t1-touchbar camera loopback node.
+# The loopback is created dynamically, so its /dev/videoN number isn't fixed across
+# boots — but its card name is. Map that name to a stable path so apps (Howdy's
+# device_path, Zoom, etc.) can point somewhere permanent: /dev/t1-camera.
+#
+# Install:  sudo cp packaging/70-t1touchbar-camera.rules /etc/udev/rules.d/
+#           sudo udevadm control --reload && sudo udevadm trigger
+SUBSYSTEM=="video4linux", ATTR{name}=="T1 iBridge Bridge", SYMLINK+="t1-camera"

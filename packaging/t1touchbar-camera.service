@@ -1,0 +1,21 @@
+[Unit]
+Description=T1 Touch Bar webcam bridge (on-demand, via v4l2loopback)
+Documentation=https://github.com/AJ-dev-i60/t1-touchbar
+# The camera attaches the iBridge IF1 *inside* the config-2 session that the strip
+# holds, so order it after the strip. Wants (not Requires) so the camera still
+# tries if the strip is absent — on-demand will simply wait for config 2.
+After=t1touchbar-strip.service
+Wants=t1touchbar-strip.service
+
+[Service]
+Type=simple
+# Ensure the loopback module is present, then watch the node and stream only while
+# an app (Howdy/Zoom/browser) has it open. --keep-config: don't touch the device
+# config (the strip owns config 2); just attach IF1 on demand.
+ExecStartPre=-/sbin/modprobe v4l2loopback
+ExecStart=/usr/bin/env t1touchbar-camera --on-demand --keep-config --label "T1 iBridge Bridge"
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
