@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "t1bar-studio"
+version = "0.1.0"
+description = "A config-driven, themeable, context-aware control surface for the T1 Touch Bar (built on t1-touchbar)"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "Armandt", email = "armandt@cloudnexus.co.za" }]
+keywords = ["touchbar", "macbook", "t1", "ibridge", "linux", "ui"]
+dependencies = [
+    "t1-touchbar>=0.1",
+    "Pillow>=9.0",
+    "evdev>=1.6",
+]
+
+[project.scripts]
+t1bar = "t1bar_studio.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/t1bar_studio"]

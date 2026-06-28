@@ -1,0 +1,225 @@
+{
+  "version": 1,
+  "theme": {
+    "background": [
+      8,
+      10,
+      18
+    ],
+    "button": {
+      "fill": [
+        38,
+        42,
+        58
+      ],
+      "text": [
+        232,
+        234,
+        240
+      ],
+      "radius": 12,
+      "font_size": 26
+    },
+    "pressed": {
+      "fill": [
+        70,
+        110,
+        210
+      ]
+    },
+    "accent": [
+      90,
+      170,
+      250
+    ],
+    "track": [
+      55,
+      60,
+      78
+    ]
+  },
+  "layouts": {
+    "default": {
+      "items": [
+        {
+          "type": "button",
+          "id": "esc",
+          "label": "esc",
+          "weight": 1.3,
+          "fill": [
+            60,
+            40,
+            48
+          ],
+          "action": [
+            "key",
+            "KEY_ESC"
+          ]
+        },
+        {
+          "type": "spacer",
+          "weight": 0.3
+        },
+        {
+          "type": "button",
+          "id": "bdn",
+          "icon": "brightness_down",
+          "action": [
+            "key",
+            "KEY_BRIGHTNESSDOWN"
+          ]
+        },
+        {
+          "type": "button",
+          "id": "bup",
+          "icon": "brightness_up",
+          "action": [
+            "key",
+            "KEY_BRIGHTNESSUP"
+          ]
+        },
+        {
+          "type": "spacer",
+          "weight": 0.4
+        },
+        {
+          "type": "button",
+          "id": "prev",
+          "icon": "prev",
+          "action": [
+            "key",
+            "KEY_PREVIOUSSONG"
+          ]
+        },
+        {
+          "type": "button",
+          "id": "play",
+          "icon": "play",
+          "dynamic": "play_pause",
+          "fill": [
+            34,
+            54,
+            44
+          ],
+          "action": [
+            "key",
+            "KEY_PLAYPAUSE"
+          ]
+        },
+        {
+          "type": "button",
+          "id": "next",
+          "icon": "next",
+          "action": [
+            "key",
+            "KEY_NEXTSONG"
+          ]
+        },
+        {
+          "type": "spacer",
+          "weight": 0.4
+        },
+        {
+          "type": "button",
+          "id": "voldn",
+          "icon": "volume_down",
+          "action": [
+            "key",
+            "KEY_VOLUMEDOWN"
+          ]
+        },
+        {
+          "type": "button",
+          "id": "mute",
+          "icon": "volume_mute",
+          "action": [
+            "key",
+            "KEY_MUTE"
+          ]
+        },
+        {
+          "type": "button",
+          "id": "volup",
+          "icon": "volume_up",
+          "action": [
+            "key",
+            "KEY_VOLUMEUP"
+          ]
+        }
+      ]
+    },
+    "media": {
+      "items": [
+        {
+          "type": "button",
+          "id": "prev",
+          "icon": "prev",
+          "action": [
+            "key",
+            "KEY_PREVIOUSSONG"
+          ]
+        },
+        {
+          "type": "button",
+          "id": "play",
+          "icon": "play",
+          "dynamic": "play_pause",
+          "fill": [
+            34,
+            54,
+            44
+          ],
+          "action": [
+            "key",
+            "KEY_PLAYPAUSE"
+          ]
+        },
+        {
+          "type": "button",
+          "id": "next",
+          "icon": "next",
+          "action": [
+            "key",
+            "KEY_NEXTSONG"
+          ]
+        },
+        {
+          "type": "label",
+          "id": "title",
+          "weight": 2.6,
+          "source": "media_title",
+          "font_size": 22
+        },
+        {
+          "type": "scrubber",
+          "id": "seek",
+          "weight": 5,
+          "source": "media_position",
+          "action": [
+            "seek"
+          ]
+        },
+        {
+          "type": "button",
+          "id": "volup",
+          "icon": "volume_up",
+          "action": [
+            "key",
+            "KEY_VOLUMEUP"
+          ]
+        }
+      ]
+    }
+  },
+  "rules": [
+    {
+      "when": {
+        "media": "playing"
+      },
+      "show": "media"
+    },
+    {
+      "show": "default"
+    }
+  ]
+}
