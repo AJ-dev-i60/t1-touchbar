@@ -22,6 +22,9 @@ action-mapping belong to tools built **on top** of it.
 - **Display** — blit any image (PIL or raw RGB) to the bar; ~90 fps full-panel updates,
   correct geometry and color handled for you.
 - **Touch** — `down` / `move` / `up` events with coordinates mapped to panel pixels.
+- **Camera** — the FaceTime webcam lives in the same config as the display, so the bar and
+  the camera can run **at the same time**. `t1touchbar-camera` exposes it as an ordinary
+  `/dev/video*` (via v4l2loopback) for Howdy / Zoom / browsers.
 - **Two ways to consume it** — a Python library (`import t1touchbar`) *or* a Unix-socket
   daemon (`t1touchbar serve`) so a tool in any language can drive it over a stable IPC.
 
@@ -101,14 +104,40 @@ sudo bash packaging/install-service.sh        # installs + enables the systemd s
 sudo systemctl disable --now t1touchbar-strip # ...and to hand the bar back
 ```
 
+## Camera — webcam *and* Touch Bar together
+
+The iBridge's config-2 session exposes the FaceTime camera (as **H.264**) right next to the
+display interface, so they coexist. `t1touchbar-camera` captures that stream in userspace and
+pipes it onto a **dedicated v4l2loopback node** — any app then opens it like a normal camera:
+
+```bash
+sudo modprobe v4l2loopback                 # once (a real install does this at boot)
+sudo t1touchbar-camera --print-device      # prints e.g. DEVICE=/dev/video3, then streams
+#   -> point Howdy / Zoom / your browser at that /dev/video* node
+```
+
+By design this is **invisible to your real camera**: it creates its *own* loopback node
+(never touches `/dev/video0` or the default device), and when it isn't running the stock
+config-1 webcam behaves exactly as before. In Python:
+
+```python
+from t1touchbar import LoopbackBridge
+with LoopbackBridge(size="1280x720") as cam:
+    print("camera at", cam.device)         # stream until the block exits
+```
+
+> Requires the `v4l2loopback` kernel module and `ffmpeg`. The raw H.264 frames are available
+> without either via `t1touchbar.Camera(...).stream()` if you want to handle decoding yourself.
+
 ## Important caveats
 
 - **One owner at a time.** Only one process may hold the device (config 2).
 - **Blank until reboot.** Exiting hands display control back, and on T1 the firmware does
   not reclaim the panel — it stays blank until a reboot. Keep the driver running while you
   want the bar lit (the daemon is built for exactly this).
-- **Coexistence.** While the driver owns config 2, the built-in webcam, ambient-light
-  sensor, and the stock Fn/media key row are unavailable.
+- **Coexistence.** The built-in **webcam** *can* run alongside the bar — see the Camera
+  section above. The ambient-light sensor and the stock Fn/media key row remain unavailable
+  while the driver owns config 2.
 - **Nothing is persistent** — a reboot fully restores the stock Touch Bar.
 
 ## How it works
