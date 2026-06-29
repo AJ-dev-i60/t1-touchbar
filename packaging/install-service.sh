@@ -54,7 +54,7 @@ systemctl restart t1touchbar-camera.service 2>/dev/null || true
 
 echo "==> point the app launcher at your config"
 LAUNCHER="$USER_HOME/.local/share/applications/t1bar-studio.desktop"
-[ -f "$LAUNCHER" ] && sed -i "s#-c [^ ]*\.json#-c $CFG#" "$LAUNCHER" || true
+[ -f "$LAUNCHER" ] && sed -i "s#-c [^ ]*#-c $CFG#" "$LAUNCHER" || true
 
 echo "done.  t1bar=$(systemctl is-active t1bar.service)  camera=$(systemctl is-active t1touchbar-camera.service)  config=$(cfgval)"
 echo "Edit your bar:  t1bar edit -c $CFG   (or launch 't1bar studio' from the app grid)"

@@ -44,6 +44,6 @@ fi
 
 # point the launcher back at the repo's example config (harmless if the repo moved)
 LAUNCHER="$USER_HOME/.local/share/applications/t1bar-studio.desktop"
-[ -f "$LAUNCHER" ] && sed -i "s#-c [^ ]*\.json#-c CONFIG_PATH#" "$LAUNCHER" || true
+[ -f "$LAUNCHER" ] && sed -i "s#-c [^ ]*#-c CONFIG_PATH#" "$LAUNCHER" || true
 
 echo "done.  Your layout is kept at $CFG (delete it to forget your customizations)."
