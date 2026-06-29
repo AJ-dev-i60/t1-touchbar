@@ -15,7 +15,7 @@ Type=simple
 # an app (Howdy/Zoom/browser) has it open. --keep-config: don't touch the device
 # config (the strip owns config 2); just attach IF1 on demand.
 ExecStartPre=-/sbin/modprobe v4l2loopback
-ExecStart=/usr/bin/env t1touchbar-camera --on-demand --keep-config --label "T1 iBridge Bridge"
+ExecStart=/usr/bin/env t1touchbar-camera --on-demand --keep-config
 Restart=on-failure
 RestartSec=3
 

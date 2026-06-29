@@ -35,7 +35,7 @@ _VS_PROBE, _VS_COMMIT = 0x0100, 0x0200
 _RT_SET, _RT_GET = 0x21, 0xA1
 # (bFormatIndex is always 1; frame index selects the resolution)
 FRAME_INDEX = {"1280x720": 1, "640x480": 2}
-DEFAULT_LABEL = "T1 iBridge Bridge"
+DEFAULT_LABEL = "FaceTime HD Camera"
 
 
 def _find_syspath():

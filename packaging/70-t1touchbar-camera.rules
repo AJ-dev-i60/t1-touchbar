@@ -5,4 +5,4 @@
 #
 # Install:  sudo cp packaging/70-t1touchbar-camera.rules /etc/udev/rules.d/
 #           sudo udevadm control --reload && sudo udevadm trigger
-SUBSYSTEM=="video4linux", ATTR{name}=="T1 iBridge Bridge", SYMLINK+="t1-camera"
+SUBSYSTEM=="video4linux", ATTR{name}=="FaceTime HD Camera", SYMLINK+="t1-camera"
