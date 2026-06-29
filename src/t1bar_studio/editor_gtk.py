@@ -8,6 +8,7 @@ restraint.
 """
 import io
 import json
+import os
 
 import cairo  # noqa: F401  (registers the cairo.Context foreign-struct converter)
 import gi
@@ -595,10 +596,21 @@ class App(Adw.Application):
         win = Window(self, self.path)
         win.present()
         if self.shot:
-            for i, it in enumerate(win.items()):     # select a widget for the shot
+            # optional env overrides so a batch can capture each inspector state:
+            #   T1BAR_SHOT_MODE=Item|Theme|Rules   T1BAR_SHOT_LAYOUT=<name>   T1BAR_SHOT_PLAYING=1
+            mode = os.environ.get("T1BAR_SHOT_MODE", "Item")
+            want_layout = os.environ.get("T1BAR_SHOT_LAYOUT")
+            if want_layout and want_layout in win.cfg["layouts"]:
+                win.layout = want_layout; win._build_tabs()
+            if os.environ.get("T1BAR_SHOT_PLAYING") and hasattr(win, "play_toggle"):
+                win.preview_playing = True; win.play_toggle.set_active(True)
+            for i, it in enumerate(win.items()):     # select first button (for Item mode)
                 if it.get("type", "button") == "button":
-                    win.sel = i; win.mode = "Item"; win.refresh(); win.rebuild_inspector()
-                    break
+                    win.sel = i; break
+            win.mode = mode
+            if mode != "Item":
+                win.sel = None
+            win.refresh(); win.rebuild_inspector()
             GLib.timeout_add(1300, self._save_shot, win)
 
     def _save_shot(self, win):

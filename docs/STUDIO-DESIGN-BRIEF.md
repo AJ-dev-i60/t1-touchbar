@@ -349,6 +349,20 @@ A redesign succeeds if:
 └───────────┴───────────────────────────────────┴───────────────┘
 ```
 
+## Appendix C — current UI screenshots (the starting point to improve on)
+
+Captured from the running app. These show the *current* design — the baseline a redesign
+should surpass. Note the "stacked settings form" inspector, the modest preview, and the plain
+palette/tabs called out in §13.
+
+- `screenshots/01-main-item.png` — main window: header (preview-state + live-status pills), the
+  bar preview in its pit, weight ruler, layout tabs, widget palette (left), and the **Item**
+  inspector (right) editing the selected `esc` button.
+- `screenshots/02-theme.png` — the **Theme** inspector (global bar styling fields).
+- `screenshots/03-rules.png` — the **Rules** inspector (context → layout list).
+- `screenshots/04-media-playing.png` — the **media** layout selected with the "playing" preview
+  on: transport buttons, a bound title label, and the draggable scrubber.
+
 ## Appendix B — a real example config
 
 ```json
