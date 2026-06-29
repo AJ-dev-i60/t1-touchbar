@@ -51,7 +51,9 @@ class Runtime:
             last_sig = None
             try:
                 while not self._stop:
-                    if self.hot.poll() is not None:        # config edited → live reload
+                    new_cfg = self.hot.poll()
+                    if new_cfg is not None:                 # config edited → live reload
+                        self.cfg = new_cfg
                         self.cfg_gen += 1
                         print("[t1bar] config reloaded (live)", flush=True)
                     state = self._state(w, h)
