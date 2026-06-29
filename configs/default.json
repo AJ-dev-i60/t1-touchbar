@@ -237,19 +237,13 @@
         },
         {
           "type": "button",
-          "id": "new",
-          "label": "new",
+          "id": "voldn",
+          "icon": "volume_down",
           "action": [
             "key",
-            "KEY_ESC"
+            "KEY_VOLUMEDOWN"
           ],
-          "icon": "volume_down",
-          "fill": [
-            62,
-            58,
-            40
-          ],
-          "weight": 1.0
+          "weight": 1
         }
       ]
     }

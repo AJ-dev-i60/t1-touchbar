@@ -106,6 +106,7 @@ class Window(Adw.ApplicationWindow):
         self.mode = "Item"
         self.ruler = None
         self._save_pending = False
+        self.preview_playing = False     # demo media state for the preview (off = idle bar)
 
         self.toasts = Adw.ToastOverlay()
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -147,9 +148,22 @@ class Window(Adw.ApplicationWindow):
         hb.set_title_widget(title)
         self.live = Gtk.ToggleButton(label="●  Live on bar")
         self.live.add_css_class("live-pill")
-        self.live.set_tooltip_text("Run `sudo t1bar run -c <config>` to push edits to the hardware")
+        self.live.set_tooltip_text(
+            "The t1bar service drives the Touch Bar from this file — your edits "
+            "appear on the bar live as you save.")
         hb.pack_end(self.live)
+        # demo whether media is "playing" so you can preview the media layout;
+        # off by default so the default layout matches the idle bar exactly.
+        self.play_toggle = Gtk.ToggleButton(label="▶  playing")
+        self.play_toggle.add_css_class("live-pill")
+        self.play_toggle.set_tooltip_text("Preview the bar as if media were playing")
+        self.play_toggle.connect("toggled", self._on_preview_playing)
+        hb.pack_end(self.play_toggle)
         return hb
+
+    def _on_preview_playing(self, btn):
+        self.preview_playing = btn.get_active()
+        self.refresh()
 
     def _canvas(self):
         pit = Gtk.Box(); pit.add_css_class("bar-pit")
@@ -282,8 +296,9 @@ class Window(Adw.ApplicationWindow):
 
     def refresh(self):
         """Re-render the bar (+ selection highlight) and schedule a save."""
+        status = "Playing" if self.preview_playing else "Stopped"
         state = {"width": BAR_W, "height": BAR_H, "pressed": None,
-                 "media": {"status": "Playing", "position": 73, "length": 210,
+                 "media": {"status": status, "position": 73, "length": 210,
                            "title": "Demo Track", "artist": "Artist"}}
         try:
             im = render.render(self.cfg, self.layout, state).convert("RGB")
