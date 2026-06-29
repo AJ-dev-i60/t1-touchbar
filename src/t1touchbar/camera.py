@@ -539,7 +539,12 @@ class OnDemandBridge:
         self.poll = poll
 
     def run(self, should_stop):
-        node = self.device or ensure_loopback(self.label, exclusive=False,
+        # Exclusive caps (Capture-only): browsers (Chrome/Edge/Teams) refuse a
+        # camera that also advertises Video Output, so non-exclusive made the cam
+        # invisible to them. Exclusive is safe here because the persistent writer
+        # below is attached for the node's whole life, so it always presents
+        # capture caps and consumers can always open it.
+        node = self.device or ensure_loopback(self.label, exclusive=True,
                                               size=self.size)
         self.device = node
         w, h = (int(x) for x in self.size.split("x"))
@@ -668,7 +673,10 @@ def main(argv=None):
         signal.signal(s, lambda *_: stop.update(v=True))
 
     if args.on_demand:
-        node = args.device or ensure_loopback(args.label, exclusive=False,
+        # exclusive caps: the persistent writer is always attached, so the node
+        # presents Capture-only — required for browsers (Chrome/Edge/Teams), still
+        # fine for Howdy/OpenCV.
+        node = args.device or ensure_loopback(args.label, exclusive=True,
                                               size=args.size)
         if args.print_device:
             print(f"DEVICE={node}", flush=True)
