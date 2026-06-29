@@ -1,0 +1,18 @@
+[Unit]
+Description=t1bar-studio - drives the T1 Touch Bar from your config (config-driven runtime)
+Documentation=https://github.com/AJ-dev-i60/t1-touchbar
+# Up before the greeter so the bar + config 2 are ready at login (no cycle: do NOT
+# also add After=multi-user.target while WantedBy=multi-user.target).
+Before=display-manager.service
+
+[Service]
+Type=simple
+# Runs as root (USB control, briefly unloads the apple touchbar modules, uinput).
+# Reads your config and HOT-RELOADS it, so edits from the editor appear on the bar
+# live. Media/volume are bridged to the logged-in user's session automatically.
+ExecStart=/usr/bin/env t1bar run -c CONFIG_PATH
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
