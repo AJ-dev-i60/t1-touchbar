@@ -31,7 +31,7 @@ import math
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-from . import icons
+from . import icons, motion
 
 # ── material / strip example tokens (from the concept design tokens) ─────────
 METAL_TOP = (227, 179, 79)        # #e3b34f
@@ -376,25 +376,32 @@ def _draw_slider(canvas, box, part, live):
               outline=(255, 255, 255, 255), width=2)
 
 
-# ── motion hook (Phase 2 will flesh this out) ────────────────────────────────
-def _motion_mod(part, t):
-    """Return (dx, dy, alpha_mul) from any motion layers at time ``t`` (seconds).
-    Phase 1 implements a couple cheap ones so ``t`` is real; parts with no motion
-    layers (the converter adds none) are unaffected."""
-    dx = dy = 0.0
-    alpha = 1.0
-    for m in part.motions():
-        kind = m.params.get("motion")
-        amp = float(m.params.get("amplitude", 1.0))
-        period = max(0.1, float(m.params.get("period", 3.0)))
-        ph = math.sin(2 * math.pi * t / period)
-        if kind == "drift":
-            dx += amp * 3 * ph
-        elif kind == "breathe":
-            alpha *= 0.78 + 0.22 * (0.5 + 0.5 * ph)
-        elif kind == "flicker":
-            alpha *= 0.7 + 0.3 * (0.5 + 0.5 * math.sin(2 * math.pi * t / 0.13))
-    return dx, dy, alpha
+# ── motion: sweep band (Drift/Breathe/Flicker handled via motion.motion_offset) ─
+def _draw_sweeps(tile, mask, part, t, w, h):
+    """Draw any Sweep bands (a travelling specular highlight) clipped to the shape."""
+    bands = motion.sweeps(part, t)
+    if not bands:
+        return
+    layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    for centre, width, intensity in bands:
+        cx = centre * w
+        bw = max(2, width * w)
+        a = int(intensity * 150)
+        d.rectangle([cx - bw / 2, 0, cx + bw / 2, h], fill=(255, 255, 255, a))
+    layer = layer.filter(ImageFilter.GaussianBlur(max(1, w // 200)))
+    layer.putalpha(Image.composite(layer.getchannel("A"),
+                                   Image.new("L", (w, h), 0), mask))
+    tile.alpha_composite(layer)
+
+
+def _scale_alpha(tile, mul):
+    """Scale an RGBA tile's alpha channel by ``mul`` (0..1) — used for breathe/flicker."""
+    if mul >= 0.999:
+        return tile
+    a = tile.getchannel("A").point(lambda v: int(v * mul))
+    tile.putalpha(a)
+    return tile
 
 
 # ── the main render ──────────────────────────────────────────────────────────
@@ -416,8 +423,21 @@ def _paint_background(layers, w, h):
     return img.convert("RGBA")
 
 
-def render_scene(scene, geometry, live=None, theme=None, t=0.0):
-    """Render one ``Scene`` to a PIL RGB image at the strip's true resolution."""
+def _eff_intensity(eff, part, dynamics, now, motion_alpha, base):
+    """An effect's live intensity: its base, scaled by the layer's timing envelope
+    (press-flare, breathe, …) and by continuous-motion alpha. ``dynamics`` may be
+    None (still render) → envelope multiplier is 1.0."""
+    inten = float(eff.params.get("intensity", base))
+    if dynamics is not None:
+        inten *= dynamics.layer_value(part.id, eff, now)
+    return inten * motion_alpha
+
+
+def render_scene(scene, geometry, live=None, theme=None, t=0.0, dynamics=None):
+    """Render one ``Scene`` to a PIL RGB image at the strip's true resolution.
+
+    ``t`` (seconds) drives continuous motion; ``dynamics`` (a ``motion.Dynamics``)
+    drives per-layer timing envelopes. Both default to a static frame."""
     live = live or {}
     theme = theme or {}
     w = int(geometry.get("width", 2170))
@@ -431,13 +451,14 @@ def render_scene(scene, geometry, live=None, theme=None, t=0.0):
     for part, box in layout_parts(scene.parts, w, h, margin, gap):
         if part.type == "spacer":
             continue
-        dx, dy, _alpha = _motion_mod(part, t)
+        dx, dy, malpha = motion.motion_offset(part, t)
         x0, y0, x1, y1 = box
         box = (x0 + dx, y0 + dy, x1 + dx, y1 + dy)
 
         if part.type == "slider":
-            for eff in part.effects():               # shadow/glow under the slider
-                _slider_effects(canvas, box, eff, part)
+            for eff in part.effects():               # glow under the slider
+                inten = _eff_intensity(eff, part, dynamics, t, malpha, 0.6)
+                _slider_effects(canvas, box, eff, part, inten)
             _draw_slider(canvas, box, part, live)
             continue
 
@@ -459,15 +480,16 @@ def render_scene(scene, geometry, live=None, theme=None, t=0.0):
                           key=lambda e: 0 if e.params.get("effect") == "shadow" else 1):
             name = eff.params.get("effect")
             if name == "shadow":
+                inten = _eff_intensity(eff, part, dynamics, t, malpha, 0.55)
                 _silhouette(canvas, (ix0, iy0, ix1, iy1), mask, (0, 0, 0),
-                            blur=eff.params.get("blur", 6),
-                            alpha=int(eff.params.get("intensity", 0.55) * 255),
+                            blur=eff.params.get("blur", 6), alpha=int(inten * 255),
                             dx=eff.params.get("dx", 0), dy=eff.params.get("dy", 3))
             elif name == "glow":
-                gcol = eff.params.get("color", fill)
-                _silhouette(canvas, (ix0, iy0, ix1, iy1), mask, gcol,
-                            blur=eff.params.get("blur", 12),
-                            alpha=int(eff.params.get("intensity", 0.7) * 255))
+                inten = _eff_intensity(eff, part, dynamics, t, malpha, 0.7)
+                if inten > 0.01:
+                    _silhouette(canvas, (ix0, iy0, ix1, iy1), mask,
+                                eff.params.get("color", fill),
+                                blur=eff.params.get("blur", 12), alpha=int(inten * 255))
 
         # the material shape
         if part.material == "frosted":
@@ -478,6 +500,8 @@ def render_scene(scene, geometry, live=None, theme=None, t=0.0):
             for eff in part.effects():               # over-effects clipped to shape
                 if eff.params.get("effect") in ("bevel", "scanline"):
                     _over_effect(tile, mask, eff, pw, ph)
+            _draw_sweeps(tile, mask, part, t, pw, ph)
+            _scale_alpha(tile, malpha)
             canvas.alpha_composite(tile, (ix0, iy0))
 
         _draw_icon_layer(canvas, (ix0, iy0, ix1, iy1), part, ink, live)
@@ -485,10 +509,13 @@ def render_scene(scene, geometry, live=None, theme=None, t=0.0):
     return canvas.convert("RGB")
 
 
-def _slider_effects(canvas, box, eff, part):
+def _slider_effects(canvas, box, eff, part, intensity=None):
     """A glow under the slider's filled portion (sliders have no rect shape)."""
     name = eff.params.get("effect")
     if name != "glow":
+        return
+    inten = eff.params.get("intensity", 0.6) if intensity is None else intensity
+    if inten <= 0.01:
         return
     x0, y0, x1, y1 = (int(round(v)) for v in box)
     midy = (y0 + y1) // 2
@@ -497,17 +524,18 @@ def _slider_effects(canvas, box, eff, part):
     mask = _rrect_mask(x1 - x0, th, th // 2)
     _silhouette(canvas, (x0, gy0, x1, gy0 + th), mask,
                 eff.params.get("color", part.fill), blur=eff.params.get("blur", 10),
-                alpha=int(eff.params.get("intensity", 0.6) * 255))
+                alpha=int(inten * 255))
 
 
 # ── config-level convenience + hit-testing ───────────────────────────────────
-def compose(cfg, live=None, scene=None, t=0.0):
+def compose(cfg, live=None, scene=None, t=0.0, dynamics=None):
     """Render the active scene of a ``SceneConfig`` (or a named/given scene)."""
     from . import scenes as scene_mod
     if scene is None:
         scene = scene_mod.resolve_active(cfg, live or {})
     theme = (cfg.library or {}).get("legacyTheme", {})
-    return render_scene(scene, cfg.geometry, live or {}, theme=theme, t=t)
+    return render_scene(scene, cfg.geometry, live or {}, theme=theme, t=t,
+                        dynamics=dynamics)
 
 
 def hit_test(scene, geometry, px):
