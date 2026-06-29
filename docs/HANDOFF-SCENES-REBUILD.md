@@ -126,6 +126,10 @@ The concept is **much** more than a new layout. It needs:
   on config change. **Performance matters**: pushing full 2170×60 frames over the USB bulk pipe
   continuously has a cost — measure it; consider dirty-region or rate-capping; idle scenes with no
   motion can stay event-driven. This is the riskiest engineering item — prototype it early.
+  **→ MEASURED & answered in `docs/HARDWARE-FRAME-PUSH-REFERENCE.md`** (full-frame push is ~90 fps /
+  ~11 ms, USB-bound; keep it synchronous; cap motion at 30 fps event-driven; dirty-rect is
+  protocol-native but unverified; service-restart re-lights the panel — read it before building the
+  motion runtime).
 - **Live bindings** update *within* a scene (scrubber position, cpu%, fps, build status, clock)
   without swapping scenes.
 
