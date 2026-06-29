@@ -51,7 +51,7 @@
         {
           "type": "button",
           "id": "esc",
-          "label": "esc",
+          "label": "escape",
           "weight": 1.3,
           "fill": [
             60,
@@ -237,13 +237,19 @@
         },
         {
           "type": "button",
-          "id": "voldn",
-          "icon": "volume_down",
+          "id": "new",
+          "label": "new",
           "action": [
             "key",
-            "KEY_VOLUMEDOWN"
+            "KEY_ESC"
           ],
-          "weight": 1
+          "icon": "volume_down",
+          "fill": [
+            62,
+            58,
+            40
+          ],
+          "weight": 1.0
         }
       ]
     }
