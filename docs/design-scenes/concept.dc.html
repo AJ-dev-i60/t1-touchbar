@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#0b0b0d; }
+  .sys { font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif; }
+  .mono { font-family:'Space Mono',ui-monospace,monospace; }
+  .eyebrow { font:700 11px 'Space Mono',monospace; letter-spacing:.22em; color:#6a6a72; text-transform:uppercase; }
+  .panel { background:#161618; border:1px solid rgba(255,255,255,.07); border-radius:14px; }
+  .seg { font:700 9px 'Space Mono',monospace; color:#d8d3c8; padding:0 9px; white-space:nowrap; border-right:1px solid rgba(255,255,255,.07); height:100%; display:flex; align-items:center; gap:5px; }
+  .live { width:6px; height:6px; border-radius:50%; background:#46c479; display:inline-block; box-shadow:0 0 7px #46c479; }
+  .lyr { display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:9px; font:400 12px 'Space Mono',monospace; color:#cfcfd4; background:#1d1d20; border:1px solid rgba(255,255,255,.06); }
+  .sw { width:16px; height:16px; border-radius:4px; flex-shrink:0; }
+  .pill { border-radius:999px; padding:6px 13px; font:400 12px 'Space Mono',monospace; display:inline-flex; align-items:center; gap:6px; }
+  .metal { background:linear-gradient(180deg,#e3b34f 0%,#c8902f 55%,#9c6c1f 100%); color:#241a08; border:1px solid #5e4310; box-shadow:inset 0 1px 0 rgba(255,255,255,.5), inset 0 -2px 3px rgba(0,0,0,.4); text-shadow:0 1px 0 rgba(255,255,255,.25); }
+  .frost { backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px); background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.34); color:#fff; }
+  .scan { position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px); pointer-events:none; mix-blend-mode:multiply; }
+  .grunge { position:absolute; inset:0; background:radial-gradient(120% 200% at 30% -40%, rgba(120,200,180,.18), transparent 60%), repeating-linear-gradient(115deg, rgba(0,0,0,.10) 0 2px, transparent 2px 7px); pointer-events:none; }
+  @keyframes drift { 0%{background-position:0% 50%;} 100%{background-position:200% 50%;} }
+  .moving { background:linear-gradient(90deg,#1b3a6b,#7a2f8f,#2f6b8f,#1b3a6b); background-size:200% 100%; animation:drift 8s linear infinite; }
+  @keyframes breathe { 0%,100%{opacity:.55;} 50%{opacity:1;} }
+</style>
+</helmet>
+
+<div class="sys" style="background:#0b0b0d; color:#ededef; min-height:100vh; padding:0 0 100px;">
+<div style="max-width:1060px; margin:0 auto; padding:0 40px;">
+
+  <!-- ===== HERO ===== -->
+  <div style="padding:88px 0 36px;">
+    <div class="eyebrow">Concept · interaction direction · v1</div>
+    <div class="sys" style="font-size:74px; font-weight:700; letter-spacing:-.035em; line-height:.98; margin:22px 0 0;">t1bar&#8202;<span style="color:#8a8a92;">studio</span></div>
+    <div class="sys" style="font-size:25px; font-weight:600; letter-spacing:-.02em; line-height:1.3; color:#d6d6db; max-width:760px; margin:26px 0 0;">Shape a living, contextual control surface — and feel it come alive on the strip under your fingers.</div>
+    <div class="mono" style="font-size:13px; line-height:1.7; color:#8a8a90; max-width:640px; margin:20px 0 0;">A finite kit of layer-able blocks. Near-infinite, unmistakably custom results. Live on real hardware within a second.</div>
+  </div>
+
+  <!-- hero strip -->
+  <div class="panel" style="padding:30px; margin:14px 0 0; display:flex; flex-direction:column; align-items:center; gap:16px;">
+    <div style="width:100%; height:64px; border-radius:9px; background:#000; display:flex; align-items:center; gap:8px; padding:0 12px; box-sizing:border-box; box-shadow:0 0 0 1px rgba(255,255,255,.05), 0 20px 50px -20px rgba(70,196,121,.25);">
+      <div style="border-radius:9px; padding:9px 13px; font:700 12px 'Space Mono',monospace; background:#1f1f22; color:#bdbdc4; border:1px solid #2c2c30;">esc</div>
+      <div style="border-radius:9px; padding:9px 13px; font:700 12px 'Space Mono',monospace; background:#2f6b8f; color:#fff;">⏯</div>
+      <div style="flex:1; height:34px; border-radius:9px; background:#141417; border:1px solid #26262a; display:flex; align-items:center; padding:0 12px; gap:8px;"><span class="live"></span><div style="flex:1; height:3px; background:#2c2c30; border-radius:2px; position:relative;"><div style="position:absolute; left:0; top:0; bottom:0; width:46%; background:#46c479; border-radius:2px;"></div><div style="position:absolute; left:46%; top:-3px; width:9px; height:9px; border-radius:50%; background:#fff;"></div></div><span class="mono" style="font-size:9px; color:#8a8a90;">02:14</span></div>
+      <div style="border-radius:9px; padding:9px 13px; font:700 12px 'Space Mono',monospace; background:#1f1f22; color:#bdbdc4; border:1px solid #2c2c30;">🔊</div>
+      <div style="border-radius:9px; padding:9px 13px; font:700 12px 'Space Mono',monospace; color:#46c479; text-shadow:0 0 9px rgba(70,196,121,.7);">12:40</div>
+    </div>
+    <div class="mono" style="font-size:10px; color:#5e5e66;">▔▔▔ rendered at true 36:1 · this lights up on the physical strip within ~1s of every edit ▔▔▔</div>
+  </div>
+
+  <!-- ===== 01 SCENES ===== -->
+  <div style="padding:88px 0 0;">
+    <div class="eyebrow">01 · the spine</div>
+    <div class="sys" style="font-size:38px; font-weight:700; letter-spacing:-.03em; margin:16px 0 0;">Scenes — the strip follows the moment</div>
+    <div class="sys" style="font-size:17px; line-height:1.6; color:#9a9aa0; max-width:740px; margin:14px 0 0;">You don't design <i>a</i> strip — you define situations and what the strip becomes in each. Scenes resolve top-down by priority over an always-on base; whichever situation is true right now is what glows under your hands. Live data updates <i>inside</i> a scene without ever swapping it.</div>
+  </div>
+
+  <div class="panel" style="padding:26px; margin:26px 0 0;">
+    <div style="display:flex; align-items:center; gap:9px; margin-bottom:18px;">
+      <span class="live" style="animation:breathe 2.4s ease-in-out infinite;"></span>
+      <span class="sys" style="font-size:15px; font-weight:600;">Live: “Watching”</span>
+      <span class="mono" style="font-size:11px; color:#6a6a72;">— because mpv is focused &amp; media is playing</span>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+      <!-- watching active -->
+      <div style="border-radius:11px; padding:14px; background:#1a1a1d; border:1px solid #46c479; box-shadow:0 0 0 3px rgba(70,196,121,.16);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><span class="sys" style="font-size:13px; font-weight:600;">Watching</span><span class="mono" style="font-size:9px; color:#46c479;">● active · prio 2</span></div>
+        <div style="height:26px; border-radius:6px; background:#000; display:flex; align-items:center;"><div class="seg">⏯</div><div class="seg" style="flex:1;"><span class="live"></span>━●━━</div><div class="seg">🔊</div><div class="seg">CC</div><div class="seg">⛶</div></div>
+        <div class="mono" style="font-size:9px; color:#6a6a72; margin-top:9px;">when ▶ media playing</div>
+      </div>
+      <!-- coding -->
+      <div style="border-radius:11px; padding:14px; background:#161618; border:1px solid rgba(255,255,255,.07);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><span class="sys" style="font-size:13px; font-weight:600;">Coding</span><span class="mono" style="font-size:9px; color:#6a6a72;">prio 2</span></div>
+        <div style="height:26px; border-radius:6px; background:#000; display:flex; align-items:center;"><div class="seg">F1</div><div class="seg">F2</div><div class="seg">▸git</div><div class="seg" style="flex:1;"><span class="live"></span>build ✓</div></div>
+        <div class="mono" style="font-size:9px; color:#6a6a72; margin-top:9px;">when ⌨ editor focused</div>
+      </div>
+      <!-- gaming -->
+      <div style="border-radius:11px; padding:14px; background:#161618; border:1px solid rgba(255,255,255,.07);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><span class="sys" style="font-size:13px; font-weight:600;">Gaming</span><span class="mono" style="font-size:9px; color:#6a6a72;">prio 1</span></div>
+        <div style="height:26px; border-radius:6px; background:#000; display:flex; align-items:center;"><div class="seg"><span class="live"></span>CPU 38%</div><div class="seg"><span class="live"></span>GPU 71%</div><div class="seg"><span class="live"></span>142fps</div><div class="seg" style="flex:1;"></div></div>
+        <div class="mono" style="font-size:9px; color:#6a6a72; margin-top:9px;">when 🎮 game focused</div>
+      </div>
+      <!-- always base -->
+      <div style="border-radius:11px; padding:14px; background:#101012; border:1px dashed rgba(255,255,255,.14);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><span class="sys" style="font-size:13px; font-weight:600; color:#bdbdc4;">Always</span><span class="mono" style="font-size:9px; color:#6a6a72;">base · prio 0</span></div>
+        <div style="height:26px; border-radius:6px; background:#000; display:flex; align-items:center; opacity:.82;"><div class="seg">esc</div><div class="seg" style="flex:1;"></div><div class="seg">🔅</div><div class="seg">🔊</div><div class="seg"><span class="live"></span>12:40</div></div>
+        <div class="mono" style="font-size:9px; color:#6a6a72; margin-top:9px;">always on · the fallback</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 02 AUTO-FLOW ===== -->
+  <div style="padding:88px 0 0;">
+    <div class="eyebrow">02 · arranging a scene</div>
+    <div class="sys" style="font-size:38px; font-weight:700; letter-spacing:-.03em; margin:16px 0 0;">Auto-flow — parts snap into slots</div>
+    <div class="sys" style="font-size:17px; line-height:1.6; color:#9a9aa0; max-width:740px; margin:14px 0 0;">No pixel-pushing along a 36:1 hairline. Drop parts onto the strip and they snap into slots; drag to reorder. Each part declares whether it's fixed-width or stretchy, so the long ribbon stays balanced on its own. Tap any part to open its Designer.</div>
+  </div>
+
+  <div class="panel" style="padding:26px; margin:26px 0 0;">
+    <div style="height:46px; border-radius:9px; background:#000; display:flex; align-items:center; gap:6px; padding:0 10px;">
+      <div style="border-radius:7px; padding:8px 11px; font:700 10px 'Space Mono',monospace; background:#2f6b8f; color:#fff;">⏯</div>
+      <div style="flex:1; border-radius:7px; padding:0 12px; height:30px; display:flex; align-items:center; gap:8px; background:#141417; border:1px solid #46c479;"><span class="live"></span><span class="mono" style="font-size:9px; color:#9a9aa0;">scrubber · bound to media.position · stretchy</span></div>
+      <div style="border-radius:7px; padding:8px 11px; font:700 10px 'Space Mono',monospace; background:#1f1f22; color:#bdbdc4; border:1px solid #2c2c30;">🔊</div>
+      <div style="border-radius:7px; padding:8px 11px; font:700 10px 'Space Mono',monospace; background:#1f1f22; color:#bdbdc4; border:1px solid #2c2c30;">CC</div>
+      <!-- drop ghost -->
+      <div style="border-radius:7px; padding:8px 13px; font:700 10px 'Space Mono',monospace; color:#6a6a72; border:1.5px dashed #3a3a40;">＋ drop slot</div>
+    </div>
+    <div style="display:flex; gap:14px; margin-top:16px; align-items:center;">
+      <span class="mono" style="font-size:10px; color:#6a6a72;">part tray →</span>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Key</span>
+        <span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Transport</span>
+        <span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Slider</span>
+        <span class="pill" style="background:#1d1d20; color:#46c479; border:1px solid rgba(255,255,255,.08);">● Readout</span>
+        <span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Label</span>
+        <span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Spacer</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 03 LAYER LOOM ===== -->
+  <div style="padding:88px 0 0;">
+    <div class="eyebrow">03 · the designer · craft altitude</div>
+    <div class="sys" style="font-size:38px; font-weight:700; letter-spacing:-.03em; margin:16px 0 0;">Layer Loom — stack blocks into something striking</div>
+    <div class="sys" style="font-size:17px; line-height:1.6; color:#9a9aa0; max-width:740px; margin:14px 0 0;">Open any part and it blooms large. Its look is a stack of layers — background, texture, material, icon, effects, motion — that you drag to reorder. Any layer can carry a timing envelope, so a press can flare and fade back on its own clock.</div>
+  </div>
+
+  <div class="panel" style="padding:26px; margin:26px 0 0; display:flex; gap:26px;">
+    <!-- magnified -->
+    <div style="width:230px; display:flex; flex-direction:column; gap:14px;">
+      <div style="flex:1; min-height:150px; background:#000; border-radius:12px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;">
+        <div class="grunge"></div>
+        <div class="metal" style="width:96px; height:96px; border-radius:26px; display:flex; align-items:center; justify-content:center; font:700 34px 'Space Mono',monospace; position:relative; z-index:1;">⏯</div>
+        <div class="scan"></div>
+        <div class="mono" style="position:absolute; bottom:9px; right:12px; color:#5a564e; font-size:9px;">MAGNIFIED</div>
+      </div>
+      <div style="display:flex; gap:7px;">
+        <span class="pill" style="background:#ededef; color:#0b0b0d; font-weight:700; font-size:10px; padding:5px 12px;">idle</span>
+        <span class="pill" style="background:#1d1d20; color:#8a8a90; font-size:10px; padding:5px 12px; border:1px solid rgba(255,255,255,.08);">hover</span>
+        <span class="pill" style="background:#1d1d20; color:#8a8a90; font-size:10px; padding:5px 12px; border:1px solid rgba(255,255,255,.08);">pressed</span>
+      </div>
+    </div>
+    <!-- stack + timing -->
+    <div style="flex:1; display:flex; flex-direction:column; gap:7px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;"><span class="mono" style="font-size:10px; color:#8a8a90;">LAYERS · top = front</span><span class="mono" style="font-size:10px; color:#6a6a72;">⠿ drag to reorder</span></div>
+      <div class="lyr"><span>⠿</span><div class="sw" style="background:repeating-linear-gradient(45deg,#3a3a40,#3a3a40 3px,#26262a 3px,#26262a 6px);"></div>Motion · flicker</div>
+      <div class="lyr"><span>⠿</span><div class="sw" style="background:#26262a; box-shadow:inset 0 0 0 1px #555;"></div>Effect · scanline</div>
+      <div class="lyr"><span>⠿</span><div class="sw" style="background:#fff;"></div>Icon · ⏯ <span style="color:#c98a3a;">imported set ↧</span></div>
+      <div class="lyr" style="border-color:#46c479;"><span>⠿</span><div class="sw" style="background:linear-gradient(180deg,#e3b34f,#9c6c1f);"></div>Material · metal &nbsp;<span style="color:#46c479;">⧖ on press → flare, fade 600ms</span></div>
+      <div class="lyr"><span>⠿</span><div class="sw" style="background:#14302f;"></div>Texture · grunge</div>
+      <div class="lyr"><span>⠿</span><div class="sw" style="background:#0d2c2b;"></div>Background · deep teal</div>
+      <div style="display:flex; align-items:center; justify-content:center; gap:7px; padding:9px; border-radius:9px; border:1px dashed rgba(255,255,255,.14); color:#8a8a90; font:400 12px 'Space Mono',monospace; margin-top:3px;">＋ add layer</div>
+    </div>
+  </div>
+
+  <!-- ===== 04 BACKGROUND + MATERIALS ===== -->
+  <div style="padding:88px 0 0;">
+    <div class="eyebrow">04 · two surfaces, one relationship</div>
+    <div class="sys" style="font-size:38px; font-weight:700; letter-spacing:-.03em; margin:16px 0 0;">Background &amp; materials</div>
+    <div class="sys" style="font-size:17px; line-height:1.6; color:#9a9aa0; max-width:740px; margin:14px 0 0;">The background is its own sibling surface — never a parent of the parts. What ties them together is one choice: a part's <b>material</b>. That single decision is how “alive background + quiet glass” and “black background + loud buttons” both fall out — plentiful options, never a wall of knobs.</div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:26px 0 0;">
+    <div class="panel" style="padding:22px;">
+      <div class="sys" style="font-size:13px; font-weight:600; margin-bottom:4px;">Alive background · Frosted parts</div>
+      <div class="mono" style="font-size:10px; color:#6a6a72; margin-bottom:14px;">moving gradient · material = Frosted</div>
+      <div class="moving" style="height:44px; border-radius:8px; position:relative; overflow:hidden; display:flex; align-items:center; gap:7px; padding:0 9px;">
+        <div class="frost" style="border-radius:8px; padding:7px 11px; font:700 11px 'Space Mono',monospace;">⏯</div>
+        <div class="frost" style="border-radius:8px; padding:7px 11px; font:700 10px 'Space Mono',monospace; flex:1; text-align:center;">━●━</div>
+        <div class="frost" style="border-radius:8px; padding:7px 11px; font:700 11px 'Space Mono',monospace;">🔊</div>
+      </div>
+    </div>
+    <div class="panel" style="padding:22px;">
+      <div class="sys" style="font-size:13px; font-weight:600; margin-bottom:4px;">Black background · Solid parts</div>
+      <div class="mono" style="font-size:10px; color:#6a6a72; margin-bottom:14px;">background off (#000) · material = Solid</div>
+      <div style="height:44px; border-radius:8px; background:#000; display:flex; align-items:center; gap:7px; padding:0 9px;">
+        <div style="border-radius:8px; padding:7px 11px; font:700 11px 'Space Mono',monospace; background:#3a6ea5; color:#fff;">⏯</div>
+        <div style="border-radius:8px; padding:7px 11px; font:700 10px 'Space Mono',monospace; flex:1; text-align:center; background:#2f8f5b; color:#fff;">━●━</div>
+        <div style="border-radius:8px; padding:7px 11px; font:700 11px 'Space Mono',monospace; background:#c2603a; color:#fff;">🔊</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="padding:22px 26px; margin:14px 0 0; display:flex; align-items:center; gap:24px;">
+    <span class="mono" style="font-size:11px; color:#8a8a90; width:78px; flex-shrink:0;">MATERIALS · 5</span>
+    <div style="flex:1; display:flex; gap:26px; justify-content:space-around; background:#000; border-radius:10px; padding:16px;">
+      <div style="text-align:center;"><div style="border-radius:8px; padding:8px 14px; font:700 12px 'Space Mono',monospace; background:#3a6ea5; color:#fff;">A</div><div class="mono" style="font-size:9px; color:#6a6a72; margin-top:8px;">Solid</div></div>
+      <div style="text-align:center;"><div class="frost" style="border-radius:8px; padding:8px 14px; font:700 12px 'Space Mono',monospace;">A</div><div class="mono" style="font-size:9px; color:#6a6a72; margin-top:8px;">Frosted</div></div>
+      <div style="text-align:center;"><div style="border-radius:8px; padding:8px 14px; font:700 12px 'Space Mono',monospace; border:1.5px solid #d8d3c8; color:#d8d3c8;">A</div><div class="mono" style="font-size:9px; color:#6a6a72; margin-top:8px;">Outline</div></div>
+      <div style="text-align:center;"><div style="border-radius:8px; padding:8px 14px; font:700 12px 'Space Mono',monospace; color:#d8d3c8;">A</div><div class="mono" style="font-size:9px; color:#6a6a72; margin-top:8px;">Ghost</div></div>
+      <div style="text-align:center;"><div class="metal" style="border-radius:8px; padding:8px 14px; font:700 12px 'Space Mono',monospace;">A</div><div class="mono" style="font-size:9px; color:#6a6a72; margin-top:8px;">Metal</div></div>
+    </div>
+  </div>
+
+  <!-- ===== 05 THE KIT ===== -->
+  <div style="padding:88px 0 0;">
+    <div class="eyebrow">05 · the philosophy</div>
+    <div class="sys" style="font-size:38px; font-weight:700; letter-spacing:-.03em; margin:16px 0 0;">A finite kit — combinable into the spectacular</div>
+    <div class="sys" style="font-size:17px; line-height:1.6; color:#9a9aa0; max-width:740px; margin:14px 0 0;">Every block is one the system understands. Layer a handful and the result looks bespoke enough to make people ask <i>how the hell did you do that</i> — without the app ever drowning anyone in detail.</div>
+  </div>
+
+  <div class="panel" style="padding:28px; margin:26px 0 0; display:flex; flex-direction:column; gap:20px;">
+    <div><div class="mono" style="font-size:11px; color:#8a8a90; margin-bottom:10px;">BACKGROUND · 5</div><div style="display:flex; gap:8px; flex-wrap:wrap;"><span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Solid</span><span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Gradient</span><span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Motion</span><span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Texture</span><span class="pill" style="background:#1d1d20; color:#c98a3a; border:1px solid rgba(255,255,255,.08);">Image ↧</span></div></div>
+    <div style="height:1px; background:rgba(255,255,255,.06);"></div>
+    <div><div class="mono" style="font-size:11px; color:#8a8a90; margin-bottom:10px;">EFFECTS · 5 &nbsp;<span style="color:#5e5e66;">stack as many as you like</span></div><div style="display:flex; gap:8px; flex-wrap:wrap;"><span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Glow</span><span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Bevel / 3D</span><span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Scanline</span><span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Shadow</span><span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Ripple</span></div></div>
+    <div style="height:1px; background:rgba(255,255,255,.06);"></div>
+    <div><div class="mono" style="font-size:11px; color:#8a8a90; margin-bottom:10px;">MOTION + TIMING &nbsp;<span style="color:#5e5e66;">any layer can have an envelope</span></div><div style="display:flex; gap:8px; flex-wrap:wrap;"><span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Drift</span><span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Breathe</span><span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Flicker</span><span class="pill" style="background:#1d1d20; color:#cfcfd4; border:1px solid rgba(255,255,255,.08);">Sweep</span><span class="pill" style="background:#1d1d20; color:#46c479; border:1px solid rgba(255,255,255,.08);">⧖ hold · decay · curve</span></div></div>
+    <div class="mono" style="font-size:11px; line-height:1.6; color:#46c479; border-top:1px solid rgba(255,255,255,.06); padding-top:18px;">5 materials × 5 backgrounds × stacked effects × per-layer timing → effectively unbounded, yet every piece is a known, supported block.</div>
+  </div>
+
+  <!-- ===== 06 EXTEND ===== -->
+  <div style="padding:88px 0 0;">
+    <div class="eyebrow">06 · for the hardcore · at the edge</div>
+    <div class="sys" style="font-size:38px; font-weight:700; letter-spacing:-.03em; margin:16px 0 0;">Extend by spec · share whole scenes</div>
+    <div class="sys" style="font-size:17px; line-height:1.6; color:#9a9aa0; max-width:740px; margin:14px 0 0;">Power users author icons, textures and effects in their own tools, conform to a spec, and import them — where each becomes just another stackable, timeable layer. Whole scenes package into a single downloadable file the community can share and remix. The import seam sits at the edge, never between you and the live hardware.</div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:26px 0 0;">
+    <div class="panel" style="padding:24px;">
+      <div class="mono" style="font-size:11px; color:#8a8a90; margin-bottom:14px;">A SCENE PACK · one file</div>
+      <div style="display:flex; flex-direction:column; gap:9px;">
+        <div class="lyr"><span>🗺</span> background + texture layers</div>
+        <div class="lyr"><span>🔘</span> parts with material + effects baked</div>
+        <div class="lyr"><span>🎨</span> imported icon set + textures</div>
+        <div class="lyr"><span>⚡</span> triggers / bindings (when to show)</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; margin-top:16px;"><span class="pill" style="background:#ededef; color:#0b0b0d; font-weight:700;">↧ Import</span><span class="mono" style="font-size:10px; color:#6a6a72;">drops into your library — use or remix</span></div>
+    </div>
+    <div class="panel" style="padding:24px;">
+      <div class="mono" style="font-size:11px; color:#8a8a90; margin-bottom:14px;">THE IMPORT SPEC</div>
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div><div class="sys" style="font-size:12px; font-weight:600; color:#cfcfd4;">Icon</div><div class="mono" style="font-size:10px; color:#6a6a72; margin-top:3px;">SVG/PNG · square · safe-area inset · tint-able</div></div>
+        <div><div class="sys" style="font-size:12px; font-weight:600; color:#cfcfd4;">Texture</div><div class="mono" style="font-size:10px; color:#6a6a72; margin-top:3px;">tileable · sRGB · seamless edges</div></div>
+        <div><div class="sys" style="font-size:12px; font-weight:600; color:#cfcfd4;">Effect</div><div class="mono" style="font-size:10px; color:#6a6a72; margin-top:3px;">declared params the kit can drive — color, intensity, time</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== DECISIONS FOOTER ===== -->
+  <div class="panel" style="padding:34px; margin:60px 0 0; background:#101012;">
+    <div class="eyebrow">Locked for v1</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px 40px; margin-top:20px;">
+      <div><div class="mono" style="font-size:10px; color:#6a6a72;">SPINE</div><div class="sys" style="font-size:15px; font-weight:600; margin-top:3px;">Scenes over an Always base</div></div>
+      <div><div class="mono" style="font-size:10px; color:#6a6a72;">APP SHAPE</div><div class="sys" style="font-size:15px; font-weight:600; margin-top:3px;">One app · Compose ⇄ Craft</div></div>
+      <div><div class="mono" style="font-size:10px; color:#6a6a72;">DESIGNER</div><div class="sys" style="font-size:15px; font-weight:600; margin-top:3px;">Layer Loom (stack + timing)</div></div>
+      <div><div class="mono" style="font-size:10px; color:#6a6a72;">ARRANGING</div><div class="sys" style="font-size:15px; font-weight:600; margin-top:3px;">Auto-flow slots</div></div>
+      <div><div class="mono" style="font-size:10px; color:#6a6a72;">VOCABULARY</div><div class="sys" style="font-size:15px; font-weight:600; margin-top:3px;">Finite kit + import-by-spec</div></div>
+      <div><div class="mono" style="font-size:10px; color:#6a6a72;">CHROME</div><div class="sys" style="font-size:15px; font-weight:600; margin-top:3px;">Neutral graphite · native dark</div></div>
+    </div>
+    <div class="mono" style="font-size:11px; color:#5e5e66; margin-top:28px; border-top:1px solid rgba(255,255,255,.06); padding-top:18px;">native Linux · GTK4 / libadwaita · custom drawing · the strip is the only color in the room.</div>
+  </div>
+
+</div>
+</div>
+
+</x-dc>
+</body>
+</html>
