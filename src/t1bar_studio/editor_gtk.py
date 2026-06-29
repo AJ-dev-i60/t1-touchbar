@@ -9,6 +9,7 @@ restraint.
 import io
 import json
 
+import cairo  # noqa: F401  (registers the cairo.Context foreign-struct converter)
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
@@ -31,36 +32,42 @@ ACTION_KINDS = ["(none)", "key", "media", "seek", "command", "layout"]
 
 CSS = b"""
 @define-color win_bg #0B0D14;
-@define-color raised #15171F;
+@define-color raised #14161F;
 @define-color card #1C1F29;
 @define-color accent_c #5AAAFA;
+* { font-family: "Inter", "Adwaita Sans", sans-serif; }
 window { background:@win_bg; }
-headerbar { background:#0F111A; box-shadow:none; min-height:46px;
-  border-bottom:1px solid rgba(255,255,255,0.06); }
-headerbar .title { font-weight:600; letter-spacing:.3px; }
+/* flat, dark headerbar that melts into the window */
+headerbar { background:@win_bg; box-shadow:none; border:none; min-height:50px; }
+headerbar:backdrop { background:@win_bg; }
+.app-title { font-weight:600; font-size:15px; letter-spacing:.2px; color:#F2F3F7; }
+.app-sub { color:#5C616E; font-size:12px; }
 .dim { color:#9AA0AD; }
-.section-title { font-size:11px; font-weight:700; letter-spacing:.6px; color:#5C616E; }
-.bar-pit { background:#070910; border-radius:14px; padding:16px;
-  box-shadow: inset 0 2px 6px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(255,255,255,0.04); }
-.col-left { background:@raised; border-right:1px solid rgba(255,255,255,0.06); }
-.col-right { background:@raised; border-left:1px solid rgba(255,255,255,0.06); }
-.seg { background:#10131b; border-radius:8px; padding:3px; }
-.seg button { border-radius:6px; padding:4px 10px; background:transparent; color:#9AA0AD;
-  box-shadow:none; border:none; min-height:0; }
-.seg button:checked { background:#2A2E3A; color:#F2F3F7;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06); }
-.tabbar { padding:6px 10px; }
-.layout-tab { color:#9AA0AD; padding:6px 14px; background:transparent; border:none;
-  border-radius:7px; box-shadow:none; }
-.layout-tab:hover { background:#23262F; }
-.layout-tab:checked { color:#F2F3F7; background:#23262F; }
-.palette-item { padding:10px 12px; border-radius:9px; background:@card; border:none;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); }
-.palette-item:hover { background:#23262F; }
-.live-pill { border-radius:999px; padding:3px 12px; background:#15171F; color:#9AA0AD; }
-.live-pill:checked { color:#F2F3F7; }
+.section-title { font-size:10px; font-weight:700; letter-spacing:.8px; color:#565C6B; }
+/* the OLED pit - the bar looks embedded in dark aluminium */
+.bar-pit { background:#05060B; border-radius:16px; padding:18px 20px;
+  box-shadow: inset 0 2px 10px rgba(0,0,0,0.85), inset 0 0 0 1px rgba(255,255,255,0.05); }
+.col-left { background:@raised; border-right:1px solid rgba(255,255,255,0.05); }
+.col-right { background:@raised; border-left:1px solid rgba(255,255,255,0.05); }
+.stage-hint { color:#3E4456; font-size:13px; }
+.seg { background:#0C0E16; border-radius:9px; padding:3px; }
+.seg button { border-radius:7px; padding:4px 14px; background:transparent; color:#8A90A0;
+  box-shadow:none; border:none; min-height:0; font-weight:500; }
+.seg button:checked { background:#262A36; color:#F2F3F7;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.07); }
+.tabbar { padding:8px 12px; }
+.layout-tab { color:#8A90A0; padding:5px 15px; background:transparent; border:none;
+  border-radius:8px; box-shadow:none; font-weight:500; }
+.layout-tab:hover { background:rgba(255,255,255,0.05); color:#E6E8EF; }
+.layout-tab:checked { color:#FFFFFF; background:rgba(90,170,250,0.16); }
+.palette-item { padding:11px 13px; border-radius:11px; background:@card;
+  border:1px solid rgba(255,255,255,0.04); box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }
+.palette-item:hover { background:#23262F; border-color:rgba(90,170,250,0.30); }
+.live-pill { border-radius:999px; padding:4px 13px; background:#14161F; color:#8A90A0;
+  border:1px solid rgba(255,255,255,0.06); font-weight:500; }
+.live-pill:checked { color:#F2F3F7; border-color:rgba(52,199,89,0.5); }
 .danger { color:#FF6B6B; }
-.hint { color:#5C616E; font-size:12px; }
+.hint { color:#565C6B; font-size:12px; }
 """
 
 
@@ -74,6 +81,20 @@ def rgba_to_rgb(c):
     return [round(c.red * 255), round(c.green * 255), round(c.blue * 255)]
 
 
+def _round_rect(cr, x, y, w, h, r):
+    import math
+    r = min(r, w / 2, h / 2)
+    if r <= 0:
+        cr.rectangle(x, y, w, h)
+        return
+    cr.new_sub_path()
+    cr.arc(x + w - r, y + r, r, -math.pi / 2, 0)
+    cr.arc(x + w - r, y + h - r, r, 0, math.pi / 2)
+    cr.arc(x + r, y + h - r, r, math.pi / 2, math.pi)
+    cr.arc(x + r, y + r, r, math.pi, 3 * math.pi / 2)
+    cr.close_path()
+
+
 class Window(Adw.ApplicationWindow):
     def __init__(self, app, path):
         super().__init__(application=app, title="t1bar studio")
@@ -83,6 +104,7 @@ class Window(Adw.ApplicationWindow):
         self.layout = next(iter(self.cfg["layouts"]), None)
         self.sel = None
         self.mode = "Item"
+        self.ruler = None
         self._save_pending = False
 
         self.toasts = Adw.ToastOverlay()
@@ -93,9 +115,10 @@ class Window(Adw.ApplicationWindow):
         root.append(self._header())
         # canvas (hero) + tabs
         canvas_area = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        canvas_area.set_margin_top(16); canvas_area.set_margin_bottom(6)
-        canvas_area.set_margin_start(18); canvas_area.set_margin_end(18)
+        canvas_area.set_margin_top(14); canvas_area.set_margin_bottom(4)
+        canvas_area.set_margin_start(20); canvas_area.set_margin_end(20)
         canvas_area.append(self._canvas())
+        canvas_area.append(self._ruler())
         canvas_area.append(self._tabbar())
         root.append(canvas_area)
 
@@ -103,6 +126,12 @@ class Window(Adw.ApplicationWindow):
         cols = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, vexpand=True)
         cols.append(self._palette())
         stage = Gtk.Box(hexpand=True)            # breathing space
+        hint = Gtk.Label(label="Click a widget on the bar to edit it,\nor add one from the left.")
+        hint.add_css_class("stage-hint")
+        hint.set_justify(Gtk.Justification.CENTER)
+        hint.set_halign(Gtk.Align.CENTER); hint.set_valign(Gtk.Align.CENTER)
+        hint.set_hexpand(True); hint.set_vexpand(True)
+        stage.append(hint)
         cols.append(stage)
         cols.append(self._inspector())
         root.append(cols)
@@ -113,7 +142,8 @@ class Window(Adw.ApplicationWindow):
     # -- regions ---------------------------------------------------------------
     def _header(self):
         hb = Adw.HeaderBar()
-        title = Gtk.Label(label="t1bar  studio"); title.add_css_class("title")
+        hb.add_css_class("flat")
+        title = Gtk.Label(label="t1bar studio"); title.add_css_class("app-title")
         hb.set_title_widget(title)
         self.live = Gtk.ToggleButton(label="●  Live on bar")
         self.live.add_css_class("live-pill")
@@ -132,6 +162,45 @@ class Window(Adw.ApplicationWindow):
         self.pic.add_controller(click)
         pit.append(self.pic)
         return pit
+
+    def _ruler(self):
+        box = Gtk.Box()
+        box.set_margin_top(8); box.set_margin_start(2); box.set_margin_end(2)
+        self.ruler = Gtk.DrawingArea()
+        self.ruler.set_content_height(28); self.ruler.set_hexpand(True)
+        self.ruler.set_draw_func(self._draw_ruler)
+        box.append(self.ruler)
+        return box
+
+    def _draw_ruler(self, area, cr, w, h):
+        items = self.items()
+        if not items:
+            return
+        total = sum(max(0.01, it.get("weight", 1.0)) for it in items) or 1
+        gap = 4
+        avail = w - gap * (len(items) - 1)
+        x = 0.0
+        for i, it in enumerate(items):
+            seg = avail * max(0.01, it.get("weight", 1.0)) / total
+            t = it.get("type", "button")
+            if t == "spacer":
+                cr.set_source_rgba(1, 1, 1, 0.04)
+            elif i == self.sel:
+                cr.set_source_rgba(90/255, 170/255, 250/255, 0.32)
+            else:
+                cr.set_source_rgba(1, 1, 1, 0.07)
+            _round_rect(cr, x, 2, seg, h - 4, 5)
+            cr.fill()
+            if t != "spacer" and seg > 28:
+                label = it.get("id") or t
+                cr.set_source_rgba(0.62, 0.66, 0.74, 1)
+                cr.select_font_face("Inter")
+                cr.set_font_size(10.5)
+                ext = cr.text_extents(label)
+                if ext.width < seg - 8:
+                    cr.move_to(x + seg / 2 - ext.width / 2, h / 2 + ext.height / 2)
+                    cr.show_text(label)
+            x += seg + gap
 
     def _tabbar(self):
         self.tabbox = Gtk.Box(spacing=6); self.tabbox.add_css_class("tabbar")
@@ -230,6 +299,8 @@ class Window(Adw.ApplicationWindow):
                                     radius=10, outline=ACCENT, width=3)
         buf = io.BytesIO(); im.save(buf, "PNG")
         self.pic.set_paintable(Gdk.Texture.new_from_bytes(GLib.Bytes.new(buf.getvalue())))
+        if self.ruler:
+            self.ruler.queue_draw()
         self._schedule_save()
 
     def _schedule_save(self):
@@ -509,6 +580,10 @@ class App(Adw.Application):
         win = Window(self, self.path)
         win.present()
         if self.shot:
+            for i, it in enumerate(win.items()):     # select a widget for the shot
+                if it.get("type", "button") == "button":
+                    win.sel = i; win.mode = "Item"; win.refresh(); win.rebuild_inspector()
+                    break
             GLib.timeout_add(1300, self._save_shot, win)
 
     def _save_shot(self, win):
