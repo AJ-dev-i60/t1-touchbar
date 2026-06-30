@@ -118,13 +118,24 @@ you're ready, don't implement your own protocol-write.
   restart re-lights.
 - **2026-06-29 (driver):** Live-probed dirty-rect — device accepts/acks sub-region frames (see
   `blit_rect` status above). `Device.blit_rect()` to be shipped on demand.
+- **2026-06-30 (driver, observed via `MEMORY.md`):** Studio has built **Phases 1 & 2 and
+  hardware-verified** them — a new scenes schema + a converter from the old config, a
+  layered/material compositor, and a motion/envelope runtime hitting **38.5 fps end-to-end on the
+  real panel** (`scene_runtime.py`, `t1bar scene-run`; Scene Home GUI `scene_app.py`,
+  `t1bar scene-edit`); pivoted to "working-slice-first". **Implications:** (a) the new schema DOES
+  replace `theme/layouts/items/rules` and a converter exists → answers the Driver→Studio question
+  below; (b) the motion runtime reached 38.5 fps on **full frames**, consistent with the ~90 fps
+  blit ceiling minus compositing — so `blit_rect`/dirty-rect is **not yet needed**; leave it on
+  demand. Driver session has NOT touched `t1bar-studio/src` (studio-owned) — only docs + the
+  `t1-touchbar` driver/installer.
 
 ## Open cross-session questions (each session: append here; the other answers in the log)
 
-*(none open right now — studio's frame-push questions are answered in the reference doc.)*
-
 - Studio → Driver: _ask here when the motion runtime needs `Device.blit_rect()` shipped, or any
-  new `Device` capability._
-- Driver → Studio: _will the new scenes config schema fully replace the current
-  `theme/layouts/items/rules`, and does the installer's "customize" path need to migrate an
-  existing config? (affects what the installer offers / the strip↔studio handoff.)_
+  new `Device` capability._ (Currently not needed — 38.5 fps achieved with full frames.)
+- Driver → Studio: **the installer's "customize" path** — when a user opts into customization, the
+  installer enables the studio runtime as the bar-driver (instead of `t1touchbar-strip`). Does the
+  studio runtime read a canonical user config it should ship/seed (and migrate from an existing
+  strip/`t1bar` config), and what's the console entry to run it as the service
+  (`t1bar scene-run -c …`?) so the driver session can wire the installer's path-2 to it?
+  _(Was: "does the new schema replace theme/layouts/items?" — ANSWERED yes, converter exists.)_
