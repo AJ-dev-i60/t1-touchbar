@@ -11,12 +11,33 @@
 #
 # Basic and Full are mutually exclusive boot states; switching between them is a reboot.
 #
-#   sudo ./install.sh            # interactive
+# Quick install — no git, no clone:
+#   curl -fsSL https://raw.githubusercontent.com/AJ-dev-i60/t1-touchbar/main/install.sh | bash
+#   curl -fsSL .../install.sh | bash -s -- --basic     # non-interactive
+# Or from a clone:
+#   sudo ./install.sh            # interactive: Basic or Full
 #   sudo ./install.sh --basic    # firmware strip only
 #   sudo ./install.sh --full     # + studio (custom bar)
 #   flags: --yes  --no-service  --dry-run
 #
 set -euo pipefail
+
+# ── self-bootstrap ──────────────────────────────────────────────────────────
+# Supports `curl -fsSL <raw>/install.sh | bash` with NO git and NO checkout: if we're
+# not already inside a repo checkout, fetch the repo tarball and re-exec from it.
+_self_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
+if [ ! -f "${_self_dir}/apple-ib-drv/dkms.conf" ]; then
+  command -v curl >/dev/null 2>&1 || { echo "t1-touchbar: need 'curl' to bootstrap." >&2; exit 1; }
+  command -v tar  >/dev/null 2>&1 || { echo "t1-touchbar: need 'tar' to bootstrap." >&2; exit 1; }
+  _tmp="$(mktemp -d)"
+  echo "==> fetching t1-touchbar (no git needed)…"
+  curl -fsSL "https://github.com/AJ-dev-i60/t1-touchbar/tarball/main" \
+    | tar -xz -C "$_tmp" --strip-components=1
+  # re-exec the real installer from the extracted repo, as root, with the terminal
+  # reattached so the prompts work even though stdin came from the curl pipe.
+  if [ -e /dev/tty ]; then exec sudo bash "$_tmp/install.sh" "$@" </dev/tty
+  else                     exec sudo bash "$_tmp/install.sh" "$@"; fi
+fi
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
 VENV=/opt/t1touchbar/venv

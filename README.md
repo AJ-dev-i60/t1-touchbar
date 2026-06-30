@@ -13,10 +13,11 @@ strip. This project lights it up, two ways:
   with a fully programmable 2170×60 pixel surface and finger touch.
 
 ```bash
-git clone https://github.com/AJ-dev-i60/t1-touchbar
-cd t1-touchbar
-sudo ./install.sh        # choose Basic (just make it work) or Full (+ studio)
+curl -fsSL https://raw.githubusercontent.com/AJ-dev-i60/t1-touchbar/main/install.sh | bash
 ```
+
+…then choose **Basic** (just make it work) or **Full** (+ studio). No `git` needed — the
+installer fetches itself.
 
 > As far as the public record shows, this is the first time a T1 Touch Bar has been driven from
 > Linux with **both** the normal keys *and* custom graphics. Reverse-engineering story:
@@ -55,11 +56,20 @@ reboot. **Uninstalling Full returns you to Basic** — the plain firmware strip.
 
 ## Install
 
+The one-liner (no git, no clone — the installer fetches the repo itself):
+
 ```bash
+curl -fsSL https://raw.githubusercontent.com/AJ-dev-i60/t1-touchbar/main/install.sh | bash
+#   ...| bash -s -- --basic     # non-interactive: firmware strip only
+#   ...| bash -s -- --full      # ...also the studio (custom bar)
+```
+
+Or from a clone, if you prefer:
+
+```bash
+git clone https://github.com/AJ-dev-i60/t1-touchbar && cd t1-touchbar
 sudo ./install.sh            # interactive: Basic or Full
-#   sudo ./install.sh --basic    # firmware strip only
-#   sudo ./install.sh --full     # ...also the studio (custom bar)
-#   --dry-run shows exactly what it would do, changing nothing
+#   --basic / --full / --dry-run / --yes / --no-service
 ```
 
 - **Basic** → DKMS-builds the firmware driver, sets the critical `skip_acpi_power=1` parameter,
