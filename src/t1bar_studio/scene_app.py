@@ -54,7 +54,13 @@ window.scene-home { background: #0b0b0d; }
 
 .scene-card { background: #161618; border: 1px solid rgba(255,255,255,0.06);
               border-radius: 13px; padding: 14px; }
+.scene-card.card-button { box-shadow: none; }
+.scene-card.card-button:hover { background: #1b1b1e; border-color: rgba(255,255,255,0.12); }
 .scene-card.active { border: 1px solid #46c479; background: #14181550; }
+.editor-preview { background: #000; border-radius: 8px; padding: 4px; }
+.editor-hint { font-family: "Space Mono", monospace; font-size: 11px; color: #6a6a72; }
+.part-row-type { font-family: "Space Mono", monospace; font-size: 11px; color: #9a9aa0;
+                 letter-spacing: 1px; }
 .scene-name { color: #ededef; font-weight: 700; font-size: 15px; }
 .scene-prio { font-family: "Space Mono", monospace; font-size: 11px; color: #6a6a72;
               letter-spacing: 1px; }
@@ -220,10 +226,14 @@ class SceneHome(Adw.ApplicationWindow):
         return panel
 
     def _scene_card(self, scene, is_active, live):
-        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=9)
+        card = Gtk.Button()
         card.add_css_class("scene-card")
+        card.add_css_class("card-button")
         if is_active:
             card.add_css_class("active")
+        card.connect("clicked", lambda _b, s=scene: self._open_editor(s))
+        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=9)
+        card.set_child(inner)
 
         top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         name = Gtk.Label(label=scene.name, xalign=0, hexpand=True)
@@ -239,18 +249,22 @@ class SceneHome(Adw.ApplicationWindow):
             tag = Gtk.Label(label=f"prio {scene.priority}")
             tag.add_css_class("scene-prio")
         top.append(tag)
-        card.append(top)
+        inner.append(top)
 
         strip_box = Gtk.Box()
         strip_box.add_css_class("mini-strip")
         tex = scene_texture(self.cfg, scene, live, self.CARD_STRIP_W, self.CARD_STRIP_H)
         strip_box.append(_picture(tex, self.CARD_STRIP_W, self.CARD_STRIP_H))
-        card.append(strip_box)
+        inner.append(strip_box)
 
         trig = Gtk.Label(label=scene.trigger.describe(), xalign=0)
         trig.add_css_class("scene-trigger")
-        card.append(trig)
+        inner.append(trig)
         return card
+
+    def _open_editor(self, scene):
+        ed = SceneEditor(self, self.cfg, self.path, scene, on_change=self._build)
+        ed.present()
 
     def _add_card(self):
         btn = Gtk.Button()
@@ -277,6 +291,246 @@ class SceneHome(Adw.ApplicationWindow):
         return True
 
 
+MATERIALS = ("solid", "frosted", "outline", "ghost", "metal")
+
+
+def _rgba_to_list(rgba):
+    return [round(rgba.red * 255), round(rgba.green * 255), round(rgba.blue * 255)]
+
+
+def _list_to_rgba(c):
+    r = Gdk.RGBA()
+    r.red, r.green, r.blue, r.alpha = c[0] / 255, c[1] / 255, c[2] / 255, 1.0
+    return r
+
+
+def _set_part_color(part, rgb):
+    """Apply one colour to a part across the fields the materials actually read."""
+    part.fill = list(rgb)
+    if part.material in ("ghost", "outline") or part.type in ("label", "readout"):
+        part.color = list(rgb)
+    for l in part.layers:
+        if l.kind == "background":
+            l.params["color"] = list(rgb)
+
+
+class SceneEditor(Adw.Window):
+    """Bare-basic but real scene editor — the first usable Compose-altitude loop.
+
+    Edits are **auto-applied** (debounced) to the live config on disk, which the
+    running ``scene-run`` service hot-reloads → the change appears on the physical
+    strip within ~1s. Edit a part's colour / material / width, reorder, add or remove
+    parts. Richer editing (icons, actions, triggers, drag-slots, the Layer Loom)
+    layers on top of this working loop in later iterations.
+    """
+    PREVIEW_W, PREVIEW_H = 720, 30
+
+    def __init__(self, parent, cfg, path, scene, on_change=None):
+        super().__init__(transient_for=parent, modal=False)
+        self.set_default_size(780, 620)
+        self.set_title(f"Edit scene · {scene.name}")
+        self.cfg = cfg
+        self.path = path
+        self.scene = scene
+        self.on_change = on_change
+        self._apply_src = 0
+
+        toolbar = Adw.ToolbarView()
+        header = Adw.HeaderBar()
+        toolbar.add_top_bar(header)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        box.set_margin_top(16)
+        box.set_margin_bottom(16)
+        box.set_margin_start(16)
+        box.set_margin_end(16)
+
+        eyebrow = Gtk.Label(label=f"{scene.trigger.describe().upper()}", xalign=0)
+        eyebrow.add_css_class("eyebrow")
+        box.append(eyebrow)
+
+        self.preview_box = Gtk.Box()
+        self.preview_box.add_css_class("editor-preview")
+        box.append(self.preview_box)
+
+        hint = Gtk.Label(
+            label="edits apply to the live bar within ~1s", xalign=0)
+        hint.add_css_class("editor-hint")
+        box.append(hint)
+
+        self.listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        self.listbox.add_css_class("boxed-list")
+        scroller = Gtk.ScrolledWindow(vexpand=True)
+        scroller.set_child(self.listbox)
+        box.append(scroller)
+
+        addbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        for label, ptype in (("+ Key", "key"), ("+ Label", "label"),
+                             ("+ Spacer", "spacer")):
+            b = Gtk.Button(label=label)
+            b.connect("clicked", lambda _b, t=ptype: self._add_part(t))
+            addbar.append(b)
+        box.append(addbar)
+
+        toolbar.set_content(box)
+        self.set_content(toolbar)
+        self._rebuild_rows()
+        self._refresh_preview()
+
+    # -- live apply -----------------------------------------------------------
+    def _schedule_apply(self):
+        if self._apply_src:
+            GLib.source_remove(self._apply_src)
+        self._apply_src = GLib.timeout_add(250, self._apply)
+
+    def _apply(self):
+        self._apply_src = 0
+        try:
+            model.save(self.cfg, self.path)       # → service hot-reloads → bar updates
+        except Exception as e:
+            print(f"[t1bar] save failed: {e}", flush=True)
+        self._refresh_preview()
+        if self.on_change:
+            self.on_change()
+        return False
+
+    def _refresh_preview(self):
+        child = self.preview_box.get_first_child()
+        if child:
+            self.preview_box.remove(child)
+        live = {"media": {"status": "Playing", "position": 96, "length": 210,
+                          "title": "Preview", "artist": ""}, "frac": 0.5}
+        tex = scene_texture(self.cfg, self.scene, live, self.PREVIEW_W, self.PREVIEW_H)
+        self.preview_box.append(_picture(tex, self.PREVIEW_W, self.PREVIEW_H))
+
+    # -- part rows ------------------------------------------------------------
+    def _rebuild_rows(self):
+        while (row := self.listbox.get_first_child()) is not None:
+            self.listbox.remove(row)
+        for idx, part in enumerate(self.scene.parts):
+            self.listbox.append(self._part_row(part, idx))
+
+    def _part_row(self, part, idx):
+        row = Adw.ActionRow()
+        ptype = Gtk.Label(label=part.type.upper())
+        ptype.add_css_class("part-row-type")
+        ptype.set_size_request(64, -1)
+        ptype.set_xalign(0)
+        row.add_prefix(ptype)
+
+        # editable label (keys/labels)
+        if part.type in ("key", "label", "readout"):
+            entry = Gtk.Entry(text=(part.icon_layer().params.get("label", "")
+                                    if part.icon_layer() else ""))
+            entry.set_placeholder_text("label")
+            entry.set_max_width_chars(8)
+            entry.set_valign(Gtk.Align.CENTER)
+            entry.connect("changed", lambda e, p=part: self._set_label(p, e.get_text()))
+            row.add_suffix(entry)
+
+        if part.type != "spacer":
+            color_btn = Gtk.ColorDialogButton.new(Gtk.ColorDialog())
+            color_btn.set_rgba(_list_to_rgba(part.fill))
+            color_btn.set_valign(Gtk.Align.CENTER)
+            color_btn.connect("notify::rgba",
+                              lambda b, _p, part=part: self._set_color(part, b.get_rgba()))
+            row.add_suffix(color_btn)
+
+            mat = Gtk.DropDown.new_from_strings(list(MATERIALS))
+            mat.set_selected(MATERIALS.index(part.material)
+                             if part.material in MATERIALS else 0)
+            mat.set_valign(Gtk.Align.CENTER)
+            mat.connect("notify::selected",
+                        lambda d, _p, part=part: self._set_material(part, d.get_selected()))
+            row.add_suffix(mat)
+
+        stretch = Gtk.ToggleButton(label="↔")
+        stretch.set_tooltip_text("stretchy (fills remaining space)")
+        stretch.set_active(part.width_mode == "stretchy")
+        stretch.set_valign(Gtk.Align.CENTER)
+        stretch.connect("toggled", lambda t, p=part: self._set_width(p, t.get_active()))
+        row.add_suffix(stretch)
+
+        up = Gtk.Button(icon_name="go-up-symbolic")
+        up.set_valign(Gtk.Align.CENTER)
+        up.connect("clicked", lambda _b, i=idx: self._move(i, -1))
+        row.add_suffix(up)
+        down = Gtk.Button(icon_name="go-down-symbolic")
+        down.set_valign(Gtk.Align.CENTER)
+        down.connect("clicked", lambda _b, i=idx: self._move(i, 1))
+        row.add_suffix(down)
+        rm = Gtk.Button(icon_name="user-trash-symbolic")
+        rm.add_css_class("flat")
+        rm.set_valign(Gtk.Align.CENTER)
+        rm.connect("clicked", lambda _b, p=part: self._remove(p))
+        row.add_suffix(rm)
+        return row
+
+    # -- edits ----------------------------------------------------------------
+    def _set_label(self, part, text):
+        il = part.icon_layer()
+        if il is None:
+            from .model import Layer
+            il = Layer.icon(label=text, color=part.color)
+            il.id = f"{part.id}_icon"
+            part.layers.append(il)
+        else:
+            il.params["label"] = text
+            il.params["icon"] = None if text else il.params.get("icon")
+        self._schedule_apply()
+
+    def _set_color(self, part, rgba):
+        _set_part_color(part, _rgba_to_list(rgba))
+        self._schedule_apply()
+
+    def _set_material(self, part, sel):
+        part.material = MATERIALS[sel]
+        self._schedule_apply()
+
+    def _set_width(self, part, stretchy):
+        part.width_mode = "stretchy" if stretchy else "fixed"
+        self._schedule_apply()
+
+    def _move(self, idx, delta):
+        j = idx + delta
+        parts = self.scene.parts
+        if 0 <= j < len(parts):
+            parts[idx], parts[j] = parts[j], parts[idx]
+            self._rebuild_rows()
+            self._schedule_apply()
+
+    def _remove(self, part):
+        if part in self.scene.parts:
+            self.scene.parts.remove(part)
+            self._rebuild_rows()
+            self._schedule_apply()
+
+    def _add_part(self, ptype):
+        from .model import Layer, Part
+        taken = {p.id for p in self.scene.parts}
+        i = 1
+        while f"{ptype}{i}" in taken:
+            i += 1
+        pid = f"{ptype}{i}"
+        if ptype == "spacer":
+            part = Part(type="spacer", id=pid, width_mode="stretchy", weight=0.5)
+        elif ptype == "label":
+            part = Part(type="label", id=pid, width_mode="stretchy", material="ghost",
+                        color=[232, 234, 240],
+                        layers=[Layer.icon(label="text", color=[232, 234, 240])])
+        else:
+            part = Part(type="key", id=pid, width_mode="fixed", material="solid",
+                        fill=[58, 110, 165], color=[240, 245, 255],
+                        layers=[Layer.background([58, 110, 165]),
+                                Layer.icon(label="key", color=[240, 245, 255])])
+        for l in part.layers:
+            if not l.id:
+                l.id = f"{pid}_{l.kind}"
+        self.scene.parts.append(part)
+        self._rebuild_rows()
+        self._schedule_apply()
+
+
 class App(Adw.Application):
     def __init__(self, path, shot=None):
         super().__init__(application_id="za.co.cloudnexus.t1bar.scenes",
@@ -293,7 +547,13 @@ class App(Adw.Application):
         win = SceneHome(self, self.path)
         win.present()
         if self.shot:
-            GLib.timeout_add(1400, self._save_shot, win)
+            if os.environ.get("T1BAR_SHOT_EDIT"):
+                scene = win.cfg.all_scenes()[0]
+                self._edit = SceneEditor(win, win.cfg, self.path, scene)
+                self._edit.present()
+                GLib.timeout_add(1400, self._save_shot, self._edit)
+            else:
+                GLib.timeout_add(1400, self._save_shot, win)
 
     def _save_shot(self, win):
         try:

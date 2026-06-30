@@ -410,9 +410,14 @@ def load(path):
 
 
 def save(cfg, path):
-    with open(path, "w") as f:
+    # Atomic write (tmp + replace): the live runtime hot-reloads this file by mtime
+    # while the GUI writes it, so a reader must never see a half-written file.
+    import os
+    tmp = f"{path}.tmp"
+    with open(tmp, "w") as f:
         json.dump(cfg.to_dict(), f, indent=2)
         f.write("\n")
+    os.replace(tmp, path)
 
 
 class Hot:
