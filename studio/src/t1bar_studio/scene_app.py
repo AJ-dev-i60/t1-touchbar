@@ -19,6 +19,7 @@ Headless verification: ``run(path, shot=PATH)`` renders the window to a PNG via
 from __future__ import annotations
 
 import io
+import math
 import os
 
 import gi
@@ -58,6 +59,8 @@ window.scene-home { background: #0b0b0d; }
 .scene-card.card-button:hover { background: #1b1b1e; border-color: rgba(255,255,255,0.12); }
 .scene-card.active { border: 1px solid #46c479; background: #14181550; }
 .editor-preview { background: #000; border-radius: 8px; padding: 4px; }
+.editor-canvas { background: #000; border-radius: 8px; padding: 4px;
+  border: 1px solid rgba(255,255,255,0.08); }
 .editor-hint { font-family: "Space Mono", monospace; font-size: 11px; color: #6a6a72; }
 .part-row-type { font-family: "Space Mono", monospace; font-size: 11px; color: #9a9aa0;
                  letter-spacing: 1px; }
@@ -293,6 +296,71 @@ class SceneHome(Adw.ApplicationWindow):
 
 MATERIALS = ("solid", "frosted", "outline", "ghost", "metal")
 
+# What a button can fire when pressed — the curated `action` set the runtime
+# (actions.dispatch) already supports. Each entry is (short label, action list|None);
+# every key here is in actions._EMIT_KEYS, emitted via uinput (and pops the desktop OSD).
+KEY_ACTIONS = [
+    ("—", None),
+    ("Esc", ["key", "KEY_ESC"]),
+    *[(f"F{i}", ["key", f"KEY_F{i}"]) for i in range(1, 13)],
+    ("Bright +", ["key", "KEY_BRIGHTNESSUP"]),
+    ("Bright −", ["key", "KEY_BRIGHTNESSDOWN"]),
+    ("KbdLt +", ["key", "KEY_KBDILLUMUP"]),
+    ("KbdLt −", ["key", "KEY_KBDILLUMDOWN"]),
+    ("Vol +", ["key", "KEY_VOLUMEUP"]),
+    ("Vol −", ["key", "KEY_VOLUMEDOWN"]),
+    ("Mute", ["key", "KEY_MUTE"]),
+    ("Play/Pause", ["key", "KEY_PLAYPAUSE"]),
+    ("Next", ["key", "KEY_NEXTSONG"]),
+    ("Prev", ["key", "KEY_PREVIOUSSONG"]),
+]
+
+# What a part can show — the finite icon kit (icons.ICONS) + the live play/pause
+# dynamic. Each entry is (short label, icon name|None, dynamic name|None).
+ICON_CHOICES = [
+    ("— none —", None, None),
+    ("Play", "play", None),
+    ("Pause", "pause", None),
+    ("Prev", "prev", None),
+    ("Next", "next", None),
+    ("Play/Pause ↻", "play", "play_pause"),
+    ("Bright +", "brightness_up", None),
+    ("Bright −", "brightness_down", None),
+    ("Vol +", "volume_up", None),
+    ("Vol −", "volume_down", None),
+    ("Mute", "volume_mute", None),
+    ("Full", "fullscreen", None),
+    ("CC", "cc", None),
+]
+
+
+def _describe_action(action):
+    if not action:
+        return "—"
+    if action[0] == "key":
+        return action[1].replace("KEY_", "").title()
+    if action[0] == "media":
+        return f"media: {action[1]}"
+    return action[0]
+
+
+def _action_index(action):
+    for i, (_lbl, a) in enumerate(KEY_ACTIONS):
+        if a == action:
+            return i
+    return -1
+
+
+def _icon_index(part):
+    il = part.icon_layer()
+    if il is None:
+        return 0
+    icon, dyn = il.params.get("icon"), il.params.get("dynamic")
+    for i, (_lbl, ic, dy) in enumerate(ICON_CHOICES):
+        if ic == icon and dy == dyn:
+            return i
+    return 0
+
 
 def _rgba_to_list(rgba):
     return [round(rgba.red * 255), round(rgba.green * 255), round(rgba.blue * 255)]
@@ -302,6 +370,17 @@ def _list_to_rgba(c):
     r = Gdk.RGBA()
     r.red, r.green, r.blue, r.alpha = c[0] / 255, c[1] / 255, c[2] / 255, 1.0
     return r
+
+
+def _rounded(cr, x0, y0, x1, y1, r):
+    """Trace a rounded-rectangle path on a cairo context."""
+    r = min(r, (x1 - x0) / 2, (y1 - y0) / 2)
+    cr.new_sub_path()
+    cr.arc(x1 - r, y0 + r, r, -math.pi / 2, 0)
+    cr.arc(x1 - r, y1 - r, r, 0, math.pi / 2)
+    cr.arc(x0 + r, y1 - r, r, math.pi / 2, math.pi)
+    cr.arc(x0 + r, y0 + r, r, math.pi, 3 * math.pi / 2)
+    cr.close_path()
 
 
 def _set_part_color(part, rgb):
@@ -323,11 +402,11 @@ class SceneEditor(Adw.Window):
     parts. Richer editing (icons, actions, triggers, drag-slots, the Layer Loom)
     layers on top of this working loop in later iterations.
     """
-    PREVIEW_W, PREVIEW_H = 720, 30
+    CANVAS_W, CANVAS_H = 864, 46
 
     def __init__(self, parent, cfg, path, scene, on_change=None):
         super().__init__(transient_for=parent, modal=False)
-        self.set_default_size(780, 620)
+        self.set_default_size(900, 640)
         self.set_title(f"Edit scene · {scene.name}")
         self.cfg = cfg
         self.path = path
@@ -349,20 +428,44 @@ class SceneEditor(Adw.Window):
         eyebrow.add_css_class("eyebrow")
         box.append(eyebrow)
 
-        self.preview_box = Gtk.Box()
-        self.preview_box.add_css_class("editor-preview")
-        box.append(self.preview_box)
+        # the bar itself — WYSIWYG. Click an element to edit it; drag to reorder.
+        self._sel_id = None
+        self._drag_part = None
+        self._drag_start = 0.0
+        self._drag_target = None
+        self.canvas_pic = Gtk.Picture()
+        self.canvas_pic.set_content_fit(Gtk.ContentFit.FILL)
+        self.canvas_pic.set_size_request(self.CANVAS_W, self.CANVAS_H)
+        self.canvas_overlay = Gtk.DrawingArea()
+        self.canvas_overlay.set_content_width(self.CANVAS_W)
+        self.canvas_overlay.set_content_height(self.CANVAS_H)
+        self.canvas_overlay.set_draw_func(self._draw_selection)
+        click = Gtk.GestureClick()
+        click.connect("pressed", self._on_canvas_click)
+        self.canvas_overlay.add_controller(click)
+        drag = Gtk.GestureDrag()
+        drag.connect("drag-begin", self._on_drag_begin)
+        drag.connect("drag-update", self._on_drag_update)
+        drag.connect("drag-end", self._on_drag_end)
+        self.canvas_overlay.add_controller(drag)
+        canvas = Gtk.Overlay()
+        canvas.set_child(self.canvas_pic)
+        canvas.add_overlay(self.canvas_overlay)
+        canvas.set_halign(Gtk.Align.CENTER)
+        canvas.add_css_class("editor-canvas")
+        box.append(canvas)
 
         hint = Gtk.Label(
-            label="edits apply to the live bar within ~1s", xalign=0)
+            label="click an item to edit it · drag to reorder · changes hit the bar within ~1s",
+            xalign=0)
         hint.add_css_class("editor-hint")
         box.append(hint)
 
-        self.listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
-        self.listbox.add_css_class("boxed-list")
-        scroller = Gtk.ScrolledWindow(vexpand=True)
-        scroller.set_child(self.listbox)
-        box.append(scroller)
+        # per-item inspector — populated when an element is selected
+        self.inspector = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        insp_scroll = Gtk.ScrolledWindow(vexpand=True)
+        insp_scroll.set_child(self.inspector)
+        box.append(insp_scroll)
 
         addbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         for label, ptype in (("+ Key", "key"), ("+ Label", "label"),
@@ -374,8 +477,8 @@ class SceneEditor(Adw.Window):
 
         toolbar.set_content(box)
         self.set_content(toolbar)
-        self._rebuild_rows()
-        self._refresh_preview()
+        self._refresh_canvas()
+        self._refresh_inspector()
 
     # -- live apply -----------------------------------------------------------
     def _schedule_apply(self):
@@ -389,82 +492,207 @@ class SceneEditor(Adw.Window):
             model.save(self.cfg, self.path)       # → service hot-reloads → bar updates
         except Exception as e:
             print(f"[t1bar] save failed: {e}", flush=True)
-        self._refresh_preview()
+        self._refresh_canvas()
         if self.on_change:
             self.on_change()
         return False
 
-    def _refresh_preview(self):
-        child = self.preview_box.get_first_child()
-        if child:
-            self.preview_box.remove(child)
-        live = {"media": {"status": "Playing", "position": 96, "length": 210,
+    def _live(self):
+        return {"media": {"status": "Playing", "position": 96, "length": 210,
                           "title": "Preview", "artist": ""}, "frac": 0.5}
-        tex = scene_texture(self.cfg, self.scene, live, self.PREVIEW_W, self.PREVIEW_H)
-        self.preview_box.append(_picture(tex, self.PREVIEW_W, self.PREVIEW_H))
 
-    # -- part rows ------------------------------------------------------------
-    def _rebuild_rows(self):
-        while (row := self.listbox.get_first_child()) is not None:
-            self.listbox.remove(row)
-        for idx, part in enumerate(self.scene.parts):
-            self.listbox.append(self._part_row(part, idx))
+    def _refresh_canvas(self):
+        tex = scene_texture(self.cfg, self.scene, self._live(),
+                            self.CANVAS_W, self.CANVAS_H)
+        self.canvas_pic.set_paintable(tex)
+        self.canvas_overlay.queue_draw()
 
-    def _part_row(self, part, idx):
-        row = Adw.ActionRow()
-        ptype = Gtk.Label(label=part.type.upper())
-        ptype.add_css_class("part-row-type")
-        ptype.set_size_request(64, -1)
-        ptype.set_xalign(0)
-        row.add_prefix(ptype)
+    # -- the interactive strip ------------------------------------------------
+    def _layout_boxes(self, width, height):
+        """Per-part display-space rects, matching what the canvas renders."""
+        geom = preview_geometry(width, height)
+        return compose.layout_parts(self.scene.parts, width, height,
+                                    geom["margin"], geom["gap"])
 
-        # editable label (keys/labels)
+    def _part_at(self, x, width, height):
+        for p, (x0, _y0, x1, _y1) in self._layout_boxes(width, height):
+            if x0 <= x <= x1:
+                return p
+        return None
+
+    def _draw_selection(self, _area, cr, width, height):
+        if self._drag_part is not None and self._drag_target is not None:
+            self._draw_drop_line(cr, width, height)
+        part = self._selected()
+        if part is None:
+            return
+        for p, (x0, _y0, x1, _y1) in self._layout_boxes(width, height):
+            if p is part:
+                cr.set_source_rgba(0.275, 0.769, 0.475, 0.16)     # #46c479 wash
+                _rounded(cr, x0, 1, x1, height - 1, 5)
+                cr.fill()
+                cr.set_source_rgba(0.275, 0.769, 0.475, 0.95)
+                cr.set_line_width(2)
+                _rounded(cr, x0 + 1, 2, x1 - 1, height - 2, 5)
+                cr.stroke()
+                break
+
+    def _on_canvas_click(self, _gesture, _n, x, _y):
+        w = self.canvas_overlay.get_width() or self.CANVAS_W
+        h = self.canvas_overlay.get_height() or self.CANVAS_H
+        hit = self._part_at(x, w, h)
+        self._select(hit.id if hit else None)
+
+    def _select(self, pid):
+        self._sel_id = pid
+        self.canvas_overlay.queue_draw()
+        self._refresh_inspector()
+
+    def _selected(self):
+        return next((p for p in self.scene.parts if p.id == self._sel_id), None)
+
+    # -- drag to reorder (snaps into the auto-flow) ---------------------------
+    def _on_drag_begin(self, _g, sx, _sy):
+        w = self.canvas_overlay.get_width() or self.CANVAS_W
+        h = self.canvas_overlay.get_height() or self.CANVAS_H
+        self._drag_part = self._part_at(sx, w, h)
+        self._drag_start = sx
+        self._drag_target = None
+        if self._drag_part is not None:
+            self._select(self._drag_part.id)
+
+    def _on_drag_update(self, _g, ox, _oy):
+        if self._drag_part is None:
+            return
+        w = self.canvas_overlay.get_width() or self.CANVAS_W
+        h = self.canvas_overlay.get_height() or self.CANVAS_H
+        self._drag_target = self._drop_index(self._drag_start + ox, w, h)
+        self.canvas_overlay.queue_draw()
+
+    def _on_drag_end(self, _g, _ox, _oy):
+        part, target = self._drag_part, self._drag_target
+        self._drag_part = None
+        self._drag_target = None
+        if part is None or target is None:
+            self.canvas_overlay.queue_draw()
+            return
+        parts = self.scene.parts
+        before = parts.index(part)
+        parts.remove(part)
+        parts.insert(target, part)
+        if parts.index(part) != before:
+            self._refresh_canvas()
+            self._schedule_apply()
+        else:
+            self.canvas_overlay.queue_draw()
+
+    def _drop_index(self, x, width, height):
+        """Index at which the dragged part should land — one past every other
+        part whose centre is left of the cursor."""
+        target = 0
+        for p, (x0, _y0, x1, _y1) in self._layout_boxes(width, height):
+            if p is self._drag_part:
+                continue
+            if (x0 + x1) / 2 < x:
+                target += 1
+        return target
+
+    def _draw_drop_line(self, cr, width, height):
+        boxes = [b for p, b in self._layout_boxes(width, height) if p is not self._drag_part]
+        gap = preview_geometry(width, height)["gap"]
+        t = self._drag_target
+        if not boxes:
+            lx = width / 2
+        elif t <= 0:
+            lx = boxes[0][0] - gap / 2
+        elif t >= len(boxes):
+            lx = boxes[-1][2] + gap / 2
+        else:
+            lx = (boxes[t - 1][2] + boxes[t][0]) / 2
+        cr.set_source_rgba(0.275, 0.769, 0.475, 0.95)
+        cr.set_line_width(3)
+        cr.move_to(lx, 2)
+        cr.line_to(lx, height - 2)
+        cr.stroke()
+
+    # -- the per-item inspector ----------------------------------------------
+    def _refresh_inspector(self):
+        while (c := self.inspector.get_first_child()) is not None:
+            self.inspector.remove(c)
+        part = self._selected()
+        if part is None:
+            empty = Gtk.Label(label="select an item on the bar to edit it", xalign=0)
+            empty.add_css_class("editor-hint")
+            empty.set_margin_top(8)
+            self.inspector.append(empty)
+            return
+
+        grp = Adw.PreferencesGroup(title=f"{part.type.upper()} · {part.id}")
+
         if part.type in ("key", "label", "readout"):
-            entry = Gtk.Entry(text=(part.icon_layer().params.get("label", "")
-                                    if part.icon_layer() else ""))
-            entry.set_placeholder_text("label")
-            entry.set_max_width_chars(8)
-            entry.set_valign(Gtk.Align.CENTER)
-            entry.connect("changed", lambda e, p=part: self._set_label(p, e.get_text()))
-            row.add_suffix(entry)
+            il = part.icon_layer()
+            er = Adw.EntryRow(title="Label")
+            er.set_text(il.params.get("label", "") if il else "")
+            er.connect("changed", lambda e, p=part: self._set_label(p, e.get_text()))
+            grp.add(er)
 
         if part.type != "spacer":
-            color_btn = Gtk.ColorDialogButton.new(Gtk.ColorDialog())
-            color_btn.set_rgba(_list_to_rgba(part.fill))
-            color_btn.set_valign(Gtk.Align.CENTER)
-            color_btn.connect("notify::rgba",
-                              lambda b, _p, part=part: self._set_color(part, b.get_rgba()))
-            row.add_suffix(color_btn)
+            crow = Adw.ActionRow(title="Colour")
+            cbtn = Gtk.ColorDialogButton.new(Gtk.ColorDialog())
+            cbtn.set_rgba(_list_to_rgba(part.fill))
+            cbtn.set_valign(Gtk.Align.CENTER)
+            cbtn.connect("notify::rgba",
+                         lambda b, _p, p=part: self._set_color(p, b.get_rgba()))
+            crow.add_suffix(cbtn)
+            grp.add(crow)
 
-            mat = Gtk.DropDown.new_from_strings(list(MATERIALS))
-            mat.set_selected(MATERIALS.index(part.material)
-                             if part.material in MATERIALS else 0)
-            mat.set_valign(Gtk.Align.CENTER)
-            mat.connect("notify::selected",
-                        lambda d, _p, part=part: self._set_material(part, d.get_selected()))
-            row.add_suffix(mat)
+            mrow = Adw.ComboRow(title="Material",
+                                model=Gtk.StringList.new(list(MATERIALS)))
+            mrow.set_selected(MATERIALS.index(part.material)
+                              if part.material in MATERIALS else 0)
+            mrow.connect("notify::selected",
+                         lambda d, _p, p=part: self._set_material(p, d.get_selected()))
+            grp.add(mrow)
 
-        stretch = Gtk.ToggleButton(label="↔")
-        stretch.set_tooltip_text("stretchy (fills remaining space)")
-        stretch.set_active(part.width_mode == "stretchy")
-        stretch.set_valign(Gtk.Align.CENTER)
-        stretch.connect("toggled", lambda t, p=part: self._set_width(p, t.get_active()))
-        row.add_suffix(stretch)
+        if part.type in ("key", "transport"):
+            irow = Adw.ComboRow(title="Icon",
+                                model=Gtk.StringList.new([l for l, _i, _d in ICON_CHOICES]))
+            irow.set_selected(_icon_index(part))
+            irow.connect("notify::selected",
+                         lambda d, _p, p=part: self._set_icon(p, d.get_selected()))
+            grp.add(irow)
 
-        up = Gtk.Button(icon_name="go-up-symbolic")
-        up.set_valign(Gtk.Align.CENTER)
-        up.connect("clicked", lambda _b, i=idx: self._move(i, -1))
-        row.add_suffix(up)
-        down = Gtk.Button(icon_name="go-down-symbolic")
-        down.set_valign(Gtk.Align.CENTER)
-        down.connect("clicked", lambda _b, i=idx: self._move(i, 1))
-        row.add_suffix(down)
-        rm = Gtk.Button(icon_name="user-trash-symbolic")
-        rm.add_css_class("flat")
-        rm.set_valign(Gtk.Align.CENTER)
-        rm.connect("clicked", lambda _b, p=part: self._remove(p))
-        row.add_suffix(rm)
-        return row
+            arow = Adw.ComboRow(title="Action",
+                                model=Gtk.StringList.new([l for l, _a in KEY_ACTIONS]))
+            cur = _action_index(part.action)
+            arow.set_selected(cur if cur >= 0 else 0)
+            if cur < 0 and part.action is not None:
+                arow.set_subtitle(f"currently {_describe_action(part.action)}")
+            arow.connect("notify::selected",
+                         lambda d, _p, p=part: self._set_action(p, d.get_selected(), False))
+            grp.add(arow)
+
+        srow = Adw.SwitchRow(title="Stretchy", subtitle="fills remaining space")
+        srow.set_active(part.width_mode == "stretchy")
+        srow.connect("notify::active",
+                     lambda s, _p, p=part: self._set_width(p, s.get_active()))
+        grp.add(srow)
+        self.inspector.append(grp)
+
+        bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        bar.set_margin_top(4)
+        left = Gtk.Button(label="◀ move left")
+        left.connect("clicked", lambda _b: self._move_sel(-1))
+        right = Gtk.Button(label="move right ▶")
+        right.connect("clicked", lambda _b: self._move_sel(1))
+        rm = Gtk.Button(label="Remove")
+        rm.add_css_class("destructive-action")
+        rm.connect("clicked", lambda _b: self._remove_sel())
+        bar.append(left)
+        bar.append(right)
+        bar.append(Gtk.Box(hexpand=True))
+        bar.append(rm)
+        self.inspector.append(bar)
 
     # -- edits ----------------------------------------------------------------
     def _set_label(self, part, text):
@@ -476,7 +704,33 @@ class SceneEditor(Adw.Window):
             part.layers.append(il)
         else:
             il.params["label"] = text
-            il.params["icon"] = None if text else il.params.get("icon")
+            if text:                       # text replaces an icon to avoid overlap
+                il.params["icon"] = None
+                il.params["dynamic"] = None
+        self._schedule_apply()
+
+    def _set_action(self, part, sel, has_extra):
+        if has_extra:
+            if sel == 0:                   # kept the existing (unlisted) action
+                return
+            sel -= 1
+        action = KEY_ACTIONS[sel][1]
+        part.action = list(action) if action else None
+        self._schedule_apply()
+
+    def _set_icon(self, part, sel):
+        _lbl, icon, dyn = ICON_CHOICES[sel]
+        il = part.icon_layer()
+        if il is None:
+            from .model import Layer
+            il = Layer.icon(name=icon, color=part.color, dynamic=dyn)
+            il.id = f"{part.id}_icon"
+            part.layers.append(il)
+        else:
+            il.params["icon"] = icon
+            il.params["dynamic"] = dyn
+            if icon or dyn:                # an icon replaces a label to avoid overlap
+                il.params["label"] = ""
         self._schedule_apply()
 
     def _set_color(self, part, rgba):
@@ -491,18 +745,25 @@ class SceneEditor(Adw.Window):
         part.width_mode = "stretchy" if stretchy else "fixed"
         self._schedule_apply()
 
-    def _move(self, idx, delta):
-        j = idx + delta
+    def _move_sel(self, delta):
+        part = self._selected()
+        if part is None:
+            return
         parts = self.scene.parts
+        i = parts.index(part)
+        j = i + delta
         if 0 <= j < len(parts):
-            parts[idx], parts[j] = parts[j], parts[idx]
-            self._rebuild_rows()
+            parts[i], parts[j] = parts[j], parts[i]
+            self._refresh_canvas()
             self._schedule_apply()
 
-    def _remove(self, part):
-        if part in self.scene.parts:
+    def _remove_sel(self):
+        part = self._selected()
+        if part and part in self.scene.parts:
             self.scene.parts.remove(part)
-            self._rebuild_rows()
+            self._sel_id = None
+            self._refresh_canvas()
+            self._refresh_inspector()
             self._schedule_apply()
 
     def _add_part(self, ptype):
@@ -527,7 +788,9 @@ class SceneEditor(Adw.Window):
             if not l.id:
                 l.id = f"{pid}_{l.kind}"
         self.scene.parts.append(part)
-        self._rebuild_rows()
+        self._sel_id = pid
+        self._refresh_canvas()
+        self._refresh_inspector()
         self._schedule_apply()
 
 

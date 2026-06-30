@@ -143,6 +143,10 @@ class SceneRuntime:
                         self.dynamics.activate_scene(scene, now)
                         self.scene = scene
                         last_sig = None                     # force a repaint
+                        print(f"[t1bar] active scene -> "
+                              f"{scene.id if scene else None} "
+                              f"({scene.trigger.describe() if scene else '-'})",
+                              flush=True)
                     self.scene = scene
 
                     animating = scene is not None and self.dynamics.scene_animating(scene, now)

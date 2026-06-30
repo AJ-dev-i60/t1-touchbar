@@ -47,10 +47,15 @@ class MediaWatcher:
         return n / 1e6 if n > 1e5 else n      # playerctl templates emit microseconds
 
     def _loop(self):
-        cmd = user_cmd(["playerctl", "metadata", "--format", _FMT])
+        base = ["playerctl", "metadata", "--format", _FMT]
         while self._run:
             try:
-                out = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+                # Resolve the user session on *every* poll. The service can start at
+                # boot (unit is Before=display-manager) before /run/user/<uid>/bus
+                # exists — resolving once would then strand us running bare playerctl
+                # as root forever. Rebuilding the wrapper lets detection self-heal the
+                # moment the user logs in. desktop_session() is a tiny listdir.
+                out = subprocess.run(user_cmd(base), capture_output=True, text=True, timeout=2)
                 line = out.stdout.strip()
                 if line:
                     parts = (line.split("\x1f") + ["", "", "", "", ""])[:5]
