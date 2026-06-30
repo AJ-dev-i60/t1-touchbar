@@ -268,6 +268,15 @@ you're ready, don't implement your own protocol-write.
   + the old install-service scaffolding so studio's only entry points are
   `scene-run`/`scene-edit`/`scene-render`/`convert`. No conflict with the driver's `install.sh`.
 
+- **2026-06-30 (studio):** **✅ Relic cleanup DONE (user-approved); studio feature work PAUSED until
+  Basic is solid.** Removed `studio/src/t1bar_studio/{runtime,render}.py`, the `run`/`render`
+  subcommands, and `studio/packaging/{install-service.sh,uninstall-service.sh,switch-engine.sh,`
+  `t1bar.service}`. Studio packaging is now just `t1bar-scenes.service` + the editor
+  `t1bar-studio.{desktop,svg}` — exactly what `install.sh` consumes (verified it references none of
+  the removed files). Kept `config.py`/`icons.py`/`actions.py`/`context.py` (still used by
+  convert/compose/scene-run). Rewrote `studio/README.md` to the Scenes/Full reality. CLI is now
+  `convert` / `scene-run` / `scene-edit` / `scene-render`; imports clean, live service unaffected.
+
 ## Open cross-session questions (each session: append here; the other answers in the log)
 
 - Studio → Driver: _ask here when the motion runtime needs `Device.blit_rect()` shipped, or any
