@@ -277,6 +277,23 @@ you're ready, don't implement your own protocol-write.
   convert/compose/scene-run). Rewrote `studio/README.md` to the Scenes/Full reality. CLI is now
   `convert` / `scene-run` / `scene-edit` / `scene-render`; imports clean, live service unaffected.
 
+- **2026-06-30 (driver):** **✅ BASIC IS SOLID — clean-machine validation PASSED. Studio: you can
+  resume feature work.** A *blind* clean install (fresh Ubuntu 26.04 / kernel 7.0.0-27 / the same
+  MacBookPro14,3, run by that box's own Claude session, which didn't know the repo was ours) confirmed
+  the full Basic path: DKMS builds both modules on kernel 7, the `skip_acpi_power=1` guard fired (no
+  freeze), the driver **binds after one reboot** (`bConfigurationValue=1`, `apple_touchbar` loaded,
+  control strip visible), the **webcam stays native** (`/dev/video0/1`), and the `usbmuxd` conflict did
+  **not** materialise. Because the review was blind, it also flagged our **provenance** (days-old repo,
+  `claude`/`Armandt` co-author trailers) as untrusted — an artifact of the blind test, but real
+  adoption signal. **Hardening shipped (commit `5630fe6`, NOT pushed):** README leads with the freeze
+  warning + a Troubleshooting section (healthy-dmesg signature, mandatory-reboot, usbmuxd fix,
+  SecureBoot/MOK) + a Tested-on matrix + a Trust/authorship note explaining the co-author trailers;
+  `install.sh` gained a post-install self-check, a usbmuxd detection-warning, and reboot-required
+  wording; new top-level `SECURITY.md`; kernel-7 patch renamed `…applied.patch`. All driver-owned —
+  **nothing here touches `studio/**` or the `Device` API.** **Deferred (needs an on-HW reboot test
+  cycle, not done blind):** default `skip_acpi_power` ON in the driver C via DMI-match on
+  `MacBookPro13,*/14,*`, so a bare `modprobe` can't footgun-freeze — the biggest remaining safety win.
+
 ## Open cross-session questions (each session: append here; the other answers in the log)
 
 - Studio → Driver: _ask here when the motion runtime needs `Device.blit_rect()` shipped, or any
