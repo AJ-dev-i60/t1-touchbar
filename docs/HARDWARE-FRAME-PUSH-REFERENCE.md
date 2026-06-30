@@ -135,3 +135,25 @@ something re-opens it (or reboot).
   is recomposited *and* pushed (~11× less USB for small widgets).
 - Swap onto hardware via the stop→run→restart pattern (Q4); develop the compositor **headless**
   (render scenes/sequences to PNG) until it's ready to drive the panel.
+
+---
+
+## Measured: app-session compositor budget (2026-06-30, app session)
+
+Acting on the Q2 note that "the real budget is host CPU to composite each frame", the new
+`compose.py` was benchmarked at 2170×60 on this machine (Python 3.14 / PIL 12.1 / numpy 2.3):
+
+| scene | median | p95 |
+|-------|--------|-----|
+| solid-bg scenes (Always / Media: keys + slider + label + effects) | **~2 ms** | ~2.8 ms |
+| Showcase (angled **gradient** bg + all 5 materials + frosted blur + glows) | **~17 ms** | ~19.8 ms |
+| `to_device_bytes` (flip-V + transpose, 390 KB) | ~0.2 ms | — |
+
+Both fit the ~25 ms compositing budget (33 ms − ~11 ms USB push @ 30 fps). One fix was
+required: the scene **gradient** generator was a pure-Python pixel loop (**~171 ms**, 7× over
+budget); it (and the metal `_vgrad`) were rewritten numpy-vectorised → gradient cost is now
+sub-millisecond and pixel-identical. **Takeaway:** typical scenes leave ~23 ms of headroom at
+30 fps; only the heaviest gradient+frosted+multi-glow scenes approach the budget — which is the
+concrete cue to adopt **dirty-rect `blit_rect`** (Q3) when such a scene also animates only a
+small region. numpy is now a dependency. Keep new compositor code vectorised — **no per-pixel
+Python loops** over the full panel.

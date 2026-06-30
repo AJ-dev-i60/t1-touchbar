@@ -15,6 +15,7 @@ dependencies = [
     "t1-touchbar>=0.1",
     "Pillow>=9.0",
     "evdev>=1.6",
+    "numpy>=1.23",
 ]
 
 [project.scripts]

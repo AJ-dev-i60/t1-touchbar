@@ -145,42 +145,39 @@ def _rrect_mask(w, h, radius):
     return m
 
 
-def _vgrad(w, h, stops):
-    """Vertical gradient from a list of (pos0-1, rgb) stops."""
-    img = Image.new("RGB", (w, h))
-    px = img.load()
+def _grad_from_t(t, stops):
+    """Build an RGB image from a per-pixel parameter array ``t`` (h×w, 0..1) and a
+    list of (pos, rgb) stops. Fully vectorised — no Python pixel loop."""
+    import numpy as np
     stops = sorted(stops)
-    for y in range(h):
-        t = y / max(1, h - 1)
-        for i in range(len(stops) - 1):
-            p0, c0 = stops[i]
-            p1, c1 = stops[i + 1]
-            if t <= p1 or i == len(stops) - 2:
-                local = 0 if p1 == p0 else _clamp01((t - p0) / (p1 - p0))
-                col = _lerp(c0, c1, local)
-                break
-        else:
-            col = stops[-1][1]
-        for x in range(w):
-            px[x, y] = col
-    return img
+    pos = np.array([p for p, _ in stops], dtype="float32")
+    cols = np.array([c for _, c in stops], dtype="float32")     # (k, 3)
+    out = np.empty(t.shape + (3,), dtype="float32")
+    for ch in range(3):
+        out[..., ch] = np.interp(t, pos, cols[:, ch])
+    return Image.fromarray(np.clip(out, 0, 255).astype("uint8"), "RGB")
+
+
+def _vgrad(w, h, stops):
+    """Vertical gradient from a list of (pos0-1, rgb) stops (numpy-vectorised)."""
+    import numpy as np
+    t = np.linspace(0.0, 1.0, h, dtype="float32")[:, None].repeat(w, axis=1)
+    return _grad_from_t(t, stops)
 
 
 def _scene_gradient(w, h, c0, c1, angle):
-    """A 2-stop scene background gradient. Angle 0=→ (horizontal), 90=↓ (vertical)."""
-    img = Image.new("RGB", (w, h))
-    px = img.load()
+    """A 2-stop scene background gradient (numpy-vectorised — was a ~170ms pixel
+    loop). Angle 0=→ (horizontal), 90=↓ (vertical)."""
+    import numpy as np
     a = math.radians(angle)
     dx, dy = math.cos(a), math.sin(a)
-    # project each pixel onto the gradient axis, normalise to 0..1
     extent = abs(dx) * (w - 1) + abs(dy) * (h - 1) or 1
     ox = 0 if dx >= 0 else (w - 1)
     oy = 0 if dy >= 0 else (h - 1)
-    for y in range(h):
-        for x in range(w):
-            t = _clamp01((abs(x - ox) * abs(dx) + abs(y - oy) * abs(dy)) / extent)
-            px[x, y] = _lerp(c0, c1, t)
-    return img
+    tx = np.abs(np.arange(w, dtype="float32") - ox) * abs(dx)
+    ty = np.abs(np.arange(h, dtype="float32") - oy) * abs(dy)
+    t = np.clip((tx[None, :] + ty[:, None]) / extent, 0.0, 1.0)
+    return _grad_from_t(t, [(0.0, c0), (1.0, c1)])
 
 
 def _silhouette(canvas, box, mask, color, blur, alpha, dx=0, dy=0):
