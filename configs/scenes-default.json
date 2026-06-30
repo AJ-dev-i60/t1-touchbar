@@ -312,16 +312,16 @@
           ]
         },
         {
-          "id": "voldn",
+          "id": "new",
           "type": "key",
           "widthMode": "fixed",
           "weight": 1.0,
           "material": "solid",
           "radius": 12,
           "fill": [
-            38,
-            42,
-            58
+            62,
+            58,
+            40
           ],
           "color": [
             232,
@@ -335,9 +335,9 @@
               "params": {
                 "type": "solid",
                 "color": [
-                  38,
-                  42,
-                  58
+                  62,
+                  58,
+                  40
                 ]
               }
             },
@@ -346,7 +346,7 @@
               "kind": "icon",
               "params": {
                 "icon": "volume_down",
-                "label": "",
+                "label": "new",
                 "color": [
                   232,
                   234,
@@ -359,7 +359,7 @@
           ],
           "action": [
             "key",
-            "KEY_VOLUMEDOWN"
+            "KEY_ESC"
           ]
         }
       ]
@@ -395,9 +395,9 @@
         "material": "solid",
         "radius": 12,
         "fill": [
-          38,
-          42,
-          58
+          60,
+          40,
+          48
         ],
         "color": [
           232,
@@ -411,9 +411,9 @@
             "params": {
               "type": "solid",
               "color": [
-                38,
-                42,
-                58
+                60,
+                40,
+                48
               ]
             }
           },
@@ -422,7 +422,7 @@
             "kind": "icon",
             "params": {
               "icon": null,
-              "label": "esc",
+              "label": "escape",
               "color": [
                 232,
                 234,
@@ -633,7 +633,7 @@
         "id": "play",
         "type": "transport",
         "widthMode": "fixed",
-        "weight": 1.18,
+        "weight": 1.0,
         "material": "solid",
         "radius": 12,
         "fill": [

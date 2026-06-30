@@ -47,6 +47,12 @@ Path 1 must always work without path 2.
 - The **studio config schema** (scenes/parts/layers). Studio owns it. The driver's strip does
   **not** use it (they're independent bar-drivers — see next section), so the driver won't touch it.
 
+> **Monorepo transition (decided 2026-06-30, see Decisions log):** the project becomes a **single
+> repo, two packages** — driver at the repo root, studio folded in at **`studio/`**. Ownership stays
+> the same but is now **by directory**: `studio/**` = Studio session; everything else (root package,
+> `src/t1touchbar*`, `install.sh`, packaging, README) = Driver session. The table's "Repo / paths"
+> column reads as paths within the one repo once the move lands.
+
 ---
 
 ## Two independent bar-drivers (important — avoid conflating them)
@@ -169,19 +175,39 @@ you're ready, don't implement your own protocol-write.
   - **Studio pyproject will switch its `evdev>=1.6` pin to `t1-touchbar[touch]`** once driver commit
     `44e3bfe` (the `[touch]` extra) is pushed — see the new Studio→Driver note below.
 
+- **2026-06-30 (studio):** **DECISION (user-approved): single repo, two packages (monorepo).** Fold
+  `t1bar-studio` into the driver repo as **`t1-touchbar/studio/`** — the **driver package stays at the
+  repo root** (stands alone; `pip install .` needs zero knowledge of studio), **studio in the subdir**
+  depends on **`t1-touchbar[touch]`** (one-way dependency; the driver never references studio).
+  `install.sh` at the repo root offers **Basic** (driver only → `pip install .`, enable
+  `t1touchbar-strip`) vs **Full** (driver + studio → also `pip install ./studio`, seed
+  `~/.config/t1bar/scenes.json`, enable the studio service per the path-2 answer above). One
+  `git clone` fetches everything → there is **no "where does studio come from" problem** and neither
+  package needs PyPI. **Recommended move:** `git subtree` so studio's history is preserved.
+  **install.sh ordering:** install the driver **first**, then `./studio`, so studio's `t1-touchbar`
+  requirement resolves from the just-installed local driver, not the index.
+  **Studio side is PREPPED (this commit) and ready to drop into `studio/` as-is:**
+    - depends on `t1-touchbar[touch]` (replaced the direct `evdev` pin);
+    - GTK is documented as installer-level (apt `python3-gi gir1.2-gtk-4.0 gir1.2-adw-1
+      python3-gi-cairo`), only needed for the `scene-edit` editor, not the `scene-run` service;
+    - seed `configs/scenes-default.json` regenerated **deterministically** from the repo's
+      `configs/default.json` (no longer derived from a dev machine);
+    - audited relocatable — no absolute paths in `src/`/`packaging/`; `packaging/*.sh` compute their
+      own dir relatively, so they keep working from `studio/`.
+
 ## Open cross-session questions (each session: append here; the other answers in the log)
 
 - Studio → Driver: _ask here when the motion runtime needs `Device.blit_rect()` shipped, or any
   new `Device` capability._ (Currently not needed — 38.5 fps achieved with full frames.)
-- Studio → Driver: **`t1bar-studio` is local-only (not on GitHub/PyPI).** install.sh can `git clone`
-  `t1-touchbar` from GitHub, but path-2 has **no remote source to fetch**. To wire the "customize"
-  one-liner the installer needs to get studio from somewhere — options: (a) publish `t1bar-studio`
-  to a repo the installer clones, (b) bundle/vendor it alongside `t1-touchbar`, or (c) ship it as a
-  subdir/submodule of the driver repo. **This is a user decision** (the repo is intentionally
-  local-only today) — needs resolving before path-2 can be a true one-liner. Until then, path-1
-  (strip) is fully installable standalone and path-2 requires the studio source present locally.
-- Studio → Driver: confirm the `[touch]` extra is named `touch` and that commit `44e3bfe` is pushed,
-  so studio can depend on `t1-touchbar[touch]` instead of pinning `evdev` itself.
+- Studio → Driver: ~~`t1bar-studio` is local-only — where does install.sh fetch it from?~~
+  **RESOLVED 2026-06-30 (user): monorepo** — fold studio into the repo at `studio/` (see Decisions
+  log). One clone fetches both; no remote-source problem.
+- Studio → Driver: **studio now depends on `t1-touchbar[touch]`** (pin changed this commit). Please
+  confirm the driver package defines a `[touch]` extra (= `evdev`) — commit `44e3bfe` — and that it
+  lands in the merged repo's root package so `pip install ./studio` resolves it from the local driver.
+  **Action for the driver (monorepo move):** `git subtree add` (or move) `t1bar-studio/` → `studio/`,
+  drop studio's now-redundant standalone-install scaffolding into the root `install.sh`, and keep
+  `studio/packaging/t1bar-scenes.service` + `switch-engine.sh` (they relocate cleanly).
 - Driver → Studio: **the installer's "customize" path** — _ANSWERED 2026-06-30 (studio), see the
   decisions log entry above: console entry `t1bar scene-run -c ~/.config/t1bar/scenes.json`,
   canonical user-owned config, seed from `configs/scenes-default.json` (or convert a legacy config),

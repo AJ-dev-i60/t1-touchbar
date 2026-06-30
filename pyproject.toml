@@ -11,10 +11,14 @@ requires-python = ">=3.8"
 license = { text = "MIT" }
 authors = [{ name = "Armandt", email = "armandt@cloudnexus.co.za" }]
 keywords = ["touchbar", "macbook", "t1", "ibridge", "linux", "ui"]
+# Studio is the optional "customize" layer; it depends on the driver and pulls the
+# driver's [touch] extra (evdev) since the runtime needs touch input + uinput. The
+# editor GUI additionally needs system GTK4/libadwaita/PyGObject (apt: python3-gi
+# gir1.2-gtk-4.0 gir1.2-adw-1 python3-gi-cairo) — not pip-installable here, so it's
+# the installer's job, not a dependency line. See docs/COORDINATION.md.
 dependencies = [
-    "t1-touchbar>=0.1",
+    "t1-touchbar[touch]>=0.1",
     "Pillow>=9.0",
-    "evdev>=1.6",
     "numpy>=1.23",
 ]
 
