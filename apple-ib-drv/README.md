@@ -25,9 +25,14 @@ MacBookPro13,x/14,x). The exact delta vs upstream is recorded in `t1-kernel7-fix
 patching; don't re-apply it — a `patch --dry-run` will correctly report "previously applied").
 
 The five fixes (full write-up in the project's kernel-7 guide):
-1. **`skip_acpi_power` module param ⭐** — skip the `ASOC.SOCW(1)` ACPI power-on, which
-   **hard-freezes** the MacBookPro14,3 T1 at module load. *This is the key finding* and is why the
-   driver must always load with `skip_acpi_power=1` (the installer sets this permanently).
+1. **`skip_acpi_power` — safe-by-default freeze guard ⭐** — the `ASOC.SOCW(1)` ACPI power-on
+   **hard-freezes** the T1 (confirmed on MacBookPro14,3) at module load *and on resume*. *This is
+   the key finding.* The param is tri-state and **defaults to skipping on the T1 family
+   (MacBookPro13,x/14,x), detected by DMI** (`-1` = auto; unreadable DMI also skips, fail-safe) — so
+   even a bare `insmod` can't freeze the machine. `1` forces skip (the installer pins this in
+   modprobe.d, belt-and-suspenders); `0` forces the upstream power-on (**can freeze — opt-in only**).
+   All three SOCW call sites — probe, suspend, resume — honour it (upstream left suspend/resume
+   unguarded).
 2. UBSAN out-of-bounds in `appleib_add_device` (index by slot, not collection idx).
 3. `appleib_ll_parse` was a no-op → restored `hid_parse_report` (fixes `-ENODEV` on the sub-device).
 4. T1 activation with the mode interface alone (T1 has no separate display iface) → the firmware
@@ -46,8 +51,9 @@ dkms add/build/install (this source as apple-ib-drv/0.1)
 /etc/udev/rules.d/99-ibridge.rules       -> force USB config 1 + disable autosuspend
 ```
 
-`packaging/` holds those three files. **Never load the module without `skip_acpi_power=1`** — a
-plain load runs `SOCW(1)` and freezes the machine.
+`packaging/` holds those three files. The driver defaults to skipping the freeze on T1 hardware, so
+the modprobe.conf `skip_acpi_power=1` is belt-and-suspenders; **never pass `skip_acpi_power=0`** —
+that forces `SOCW(1)` and freezes the machine.
 
 ## Recovery
 

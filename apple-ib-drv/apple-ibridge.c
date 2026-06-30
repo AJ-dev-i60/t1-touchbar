@@ -43,10 +43,12 @@
 #include <linux/platform_device.h>
 #include <linux/acpi.h>
 #include <linux/device.h>
+#include <linux/dmi.h>
 #include <linux/hid.h>
 #include <linux/list.h>
 #include <linux/module.h>
 #include <linux/slab.h>
+#include <linux/string.h>
 #include <linux/usb.h>
 #include <linux/version.h>
 
@@ -63,16 +65,44 @@
 
 /*
  * T1 hard-lock diagnosis (2026-06-19): loading this driver hard-locks MacBookPro14,3.
- * Prime suspect is the unconditional ASOC.SOCW(1) iBridge power-on AML in
- * appleib_alloc_device(), which runs in the platform probe at module load with no
- * kernel-side timeout. This param lets us skip just the AML execution (the handle is
- * still fetched, so suspend/resume keep a valid asoc_socw) to confirm/avoid the hang.
- * Default false = upstream behaviour; load with skip_acpi_power=1 to skip.
+ * The cause is the ASOC.SOCW(1) iBridge power-on AML, which runs at the platform probe
+ * (appleib_alloc_device()) and again on resume, with no kernel-side timeout, and wedges
+ * the machine. We skip just the AML execution (the handle is still fetched, so the path
+ * stays valid) on affected hardware.
+ *
+ * Tri-state so the *safe* behaviour is the default and lives in the driver itself, not
+ * only in /etc/modprobe.d (which a bare insmod / source build / removed conf would miss):
+ *   -1 (auto, default) — skip on the T1 Touch Bar family (MacBookPro13,x and 14,x), and
+ *                        also skip if the DMI product name can't be read (fail safe — this
+ *                        driver only binds the T1 iBridge, so skipping is never unsafe).
+ *    0 (force-run)     — run SOCW like upstream. THIS CAN HARD-FREEZE A T1; opt-in only.
+ *    1 (force-skip)    — always skip (what the installer's modprobe.conf sets, belt-and-
+ *                        suspenders on top of the auto default).
  */
-static bool skip_acpi_power;
-module_param(skip_acpi_power, bool, 0444);
+static int skip_acpi_power = -1;
+module_param(skip_acpi_power, int, 0444);
 MODULE_PARM_DESC(skip_acpi_power,
-		"Skip ASOC.SOCW(1) iBridge power-on AML at probe (T1 hard-lock workaround)");
+		"Skip the ASOC.SOCW iBridge power AML (T1 hard-lock workaround): "
+		"-1=auto (skip on MacBookPro13,*/14,*), 0=force-run (can freeze!), 1=force-skip");
+
+/*
+ * Decide whether to skip the SOCW AML. Explicit 0/1 always win; -1 means "auto" — skip on
+ * the T1 family by DMI, and skip when DMI is unreadable (the driver only runs on T1 HW, so
+ * the safe direction is to skip). Used by every SOCW call site (probe, suspend, resume).
+ */
+static bool appleib_skip_acpi_power(void)
+{
+	const char *product;
+
+	if (skip_acpi_power >= 0)
+		return skip_acpi_power != 0;
+
+	product = dmi_get_system_info(DMI_PRODUCT_NAME);
+	if (!product)
+		return true;
+	return str_has_prefix(product, "MacBookPro13,") ||
+	       str_has_prefix(product, "MacBookPro14,");
+}
 
 static struct hid_device_id appleib_sub_hid_ids[] = {
 	{ HID_USB_DEVICE(USB_VENDOR_ID_LINUX_FOUNDATION,
@@ -567,14 +597,14 @@ static struct appleib_device *appleib_alloc_device(struct platform_device *pdev)
 	}
 
 	/* ensure iBridge is powered on (skippable: prime T1 hard-lock suspect) */
-	if (!skip_acpi_power) {
+	if (!appleib_skip_acpi_power()) {
 		sts = acpi_execute_simple_method(ib_dev->asoc_socw, NULL, 1);
 		if (ACPI_FAILURE(sts))
 			dev_warn(&pdev->dev, "SOCW(1) failed: %s\n",
 				 acpi_format_exception(sts));
 	} else {
 		dev_warn(&pdev->dev,
-			 "skip_acpi_power=1: NOT running ASOC.SOCW(1) power-on\n");
+			 "skip_acpi_power: NOT running ASOC.SOCW(1) power-on\n");
 	}
 
 	return ib_dev;
@@ -622,10 +652,13 @@ static int appleib_suspend(struct platform_device *pdev, pm_message_t message)
 
 	ib_dev = platform_get_drvdata(pdev);
 
-	rc = acpi_execute_simple_method(ib_dev->asoc_socw, NULL, 0);
-	if (ACPI_FAILURE(rc))
-		dev_warn(&pdev->dev, "SOCW(0) failed: %s\n",
-			 acpi_format_exception(rc));
+	/* same SOCW AML that hangs the T1 — honour the skip on suspend too */
+	if (!appleib_skip_acpi_power()) {
+		rc = acpi_execute_simple_method(ib_dev->asoc_socw, NULL, 0);
+		if (ACPI_FAILURE(rc))
+			dev_warn(&pdev->dev, "SOCW(0) failed: %s\n",
+				 acpi_format_exception(rc));
+	}
 
 	return 0;
 }
@@ -637,10 +670,15 @@ static int appleib_resume(struct platform_device *pdev)
 
 	ib_dev = platform_get_drvdata(pdev);
 
-	rc = acpi_execute_simple_method(ib_dev->asoc_socw, NULL, 1);
-	if (ACPI_FAILURE(rc))
-		dev_warn(&pdev->dev, "SOCW(1) failed: %s\n",
-			 acpi_format_exception(rc));
+	/* resume re-ran SOCW(1) unconditionally — the exact call that freezes at probe;
+	 * gate it the same way so a wake can't hard-lock the machine
+	 */
+	if (!appleib_skip_acpi_power()) {
+		rc = acpi_execute_simple_method(ib_dev->asoc_socw, NULL, 1);
+		if (ACPI_FAILURE(rc))
+			dev_warn(&pdev->dev, "SOCW(1) failed: %s\n",
+				 acpi_format_exception(rc));
+	}
 
 	return 0;
 }

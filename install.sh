@@ -98,7 +98,7 @@ selfcheck_basic() {
   local bound=1
   if lsmod | grep -q '^apple_touchbar'; then echo "   ✓ apple_touchbar loaded"
   else echo "   • apple_touchbar not loaded yet (expected until you reboot)"; bound=0; fi
-  if dmesg 2>/dev/null | grep -qi 'skip_acpi_power=1'; then echo "   ✓ freeze-guard active (skip_acpi_power=1)"
+  if dmesg 2>/dev/null | grep -qi 'skip_acpi_power.*NOT running'; then echo "   ✓ freeze-guard active (SOCW skipped)"
   else echo "   • freeze-guard message not in dmesg yet (will appear on the reboot load)"; fi
   if dmesg 2>/dev/null | grep -qiE 'apple-touchbar.*input:'; then echo "   ✓ Touch Bar HID created"
   else echo "   • Touch Bar HID not created yet — reboot to bind"; bound=0; fi

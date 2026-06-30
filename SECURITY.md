@@ -23,11 +23,11 @@ matters to you.
 
 ## The freeze hazard (read this)
 
-On the T1 (MacBookPro13,x/14,x), loading `apple_ibridge` **without** `skip_acpi_power=1` runs the
-ACPI method `ASOC.SOCW(1)`, which **hard-freezes the machine** — only a forced power-off recovers,
-with a small risk of filesystem damage. The installer writes the `skip_acpi_power=1` modprobe option
-**before** the module can ever load, so the supported path is safe. **Never run a bare
-`modprobe apple_ibridge`.**
+On the T1 (MacBookPro13,x/14,x), the ACPI method `ASOC.SOCW(1)` **hard-freezes the machine** — only
+a forced power-off recovers, with a small risk of filesystem damage. The driver **skips this call by
+default on T1 hardware** (DMI-gated), the installer also pins `skip_acpi_power=1` in modprobe.d, and
+all three call sites (probe, suspend, resume) honour the skip — so the supported path is safe. The
+only way to trigger the freeze is to **force the power-on with `skip_acpi_power=0`**; don't.
 
 ## Authorship
 

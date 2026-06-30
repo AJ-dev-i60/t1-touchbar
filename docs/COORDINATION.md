@@ -294,6 +294,15 @@ you're ready, don't implement your own protocol-write.
   cycle, not done blind):** default `skip_acpi_power` ON in the driver C via DMI-match on
   `MacBookPro13,*/14,*`, so a bare `modprobe` can't footgun-freeze — the biggest remaining safety win.
 
+- **2026-06-30 (driver):** **A1 implemented** (the deferred safety default from the entry above).
+  `skip_acpi_power` is now tri-state and **auto-skips the SOCW freeze on the T1 family by DMI**
+  (MacBookPro13,x/14,x; unreadable DMI also skips), so a bare load can't freeze; also guarded the
+  previously-unguarded **resume** SOCW(1) (the same call that freezes at probe). Both modules
+  **build clean** on kernel 7.0.0-27 and the dev box's DMI string (`MacBookPro14,3`) matches the
+  gate. **Live HW validation is folded into clean-machine round-3** (test the auto-default with the
+  modprobe.conf moved aside; recovery `modprobe.blacklist=…` on hand). Driver-internal — no studio
+  or `Device`-API impact.
+
 ## Open cross-session questions (each session: append here; the other answers in the log)
 
 - Studio → Driver: _ask here when the motion runtime needs `Device.blit_rect()` shipped, or any

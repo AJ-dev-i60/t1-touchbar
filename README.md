@@ -12,11 +12,12 @@ strip. This project lights it up, two ways:
 - **Customize (optional)** — hand the whole bar to the **t1bar studio** app and design your own,
   with a fully programmable 2170×60 pixel surface and finger touch.
 
-> ⚠️ **One safety note up front.** On these 2016/2017 models, loading the kernel module *without*
-> the `skip_acpi_power=1` parameter runs an ACPI power-on call (`ASOC.SOCW(1)`) that **hard-freezes
-> the machine** — you have to hold the power button to recover. **The installer always sets this
-> parameter for you**, so the supported path is safe; it's only a hazard if you load the module by
-> hand. **Never run a bare `modprobe apple_ibridge`.** See [Troubleshooting](#troubleshooting).
+> ⚠️ **One safety note up front.** On these 2016/2017 models there's an ACPI power-on call
+> (`ASOC.SOCW(1)`) that **hard-freezes the machine** — recoverable only by holding the power button.
+> The driver **skips it by default on this hardware** (it detects the T1 model), and the installer
+> additionally pins `skip_acpi_power=1`, so the supported path is safe. The *only* way to hit the
+> freeze is to force the call back on with `skip_acpi_power=0` — don't, unless you know exactly why.
+> See [Troubleshooting](#troubleshooting).
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AJ-dev-i60/t1-touchbar/main/install.sh | bash
@@ -174,7 +175,7 @@ lights and run `dkms status` — it should list `apple-ib-drv/0.1, <new-kernel>:
 ```bash
 lsmod | grep apple_touchbar                      # apple_touchbar is loaded
 cat /sys/bus/usb/devices/*/idProduct | grep 8600 # the iBridge is on the bus
-dmesg | grep -i 'skip_acpi_power'                # "skip_acpi_power=1: NOT running ASOC.SOCW(1)…"
+dmesg | grep -i 'skip_acpi_power'                # "skip_acpi_power: NOT running ASOC.SOCW(1)…"
 dmesg | grep -i 'apple-touchbar.*input:'         # the virtual Touch Bar HID was created
 # and the iBridge's bConfigurationValue should read 1 (not blank)
 ```
@@ -199,10 +200,11 @@ Secure Boot **off**. If you run with **Secure Boot on**, DKMS self-signs with a 
 enrol once (`sudo mokutil --import /var/lib/dkms/mok.pub`, set a password, reboot, confirm in the
 blue MOK screen) or the kernel will refuse to load the module.
 
-**Never hand-load without the parameter.** `modprobe apple_ibridge` *without* `skip_acpi_power=1`
-hard-freezes the machine. Confirm `/etc/modprobe.d/apple-touchbar.conf` exists before any manual
-load. Recovery if a boot ever misbehaves: at GRUB press `e` and add
-`modprobe.blacklist=apple_ibridge,apple_touchbar` to the kernel line.
+**Don't force the power-on AML.** The driver skips the freeze call by default on T1 hardware (and
+the installed `/etc/modprobe.d/apple-touchbar.conf` pins `skip_acpi_power=1` on top), so a normal
+load is safe — but `modprobe apple_ibridge skip_acpi_power=0` *forces* `ASOC.SOCW(1)` and
+hard-freezes the machine. Don't pass `=0`. Recovery if a boot ever misbehaves: at GRUB press `e`
+and add `modprobe.blacklist=apple_ibridge,apple_touchbar` to the kernel line.
 
 ## How it works
 
