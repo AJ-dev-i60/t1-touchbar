@@ -62,6 +62,7 @@ window.scene-home { background: #0b0b0d; }
 .editor-canvas { background: #000; border-radius: 8px; padding: 4px;
   border: 1px solid rgba(255,255,255,0.08); }
 .editor-hint { font-family: "Space Mono", monospace; font-size: 11px; color: #6a6a72; }
+.craft-name { font-size: 20px; font-weight: 800; color: #ededef; }
 .part-row-type { font-family: "Space Mono", monospace; font-size: 11px; color: #9a9aa0;
                  letter-spacing: 1px; }
 .scene-name { color: #ededef; font-weight: 700; font-size: 15px; }
@@ -334,6 +335,18 @@ ICON_CHOICES = [
 ]
 
 
+# Live data a slider/readout can bind to (Part.binding["source"]).
+BINDING_SOURCES = [
+    ("(none)", None),
+    ("media.position", "media.position"),
+    ("media.title", "media.title"),
+    ("media.artist", "media.artist"),
+    ("cpu", "cpu"),
+    ("gpu", "gpu"),
+    ("clock", "clock"),
+]
+
+
 def _describe_action(action):
     if not action:
         return "—"
@@ -381,6 +394,25 @@ def _rounded(cr, x0, y0, x1, y1, r):
     cr.arc(x0 + r, y1 - r, r, math.pi / 2, math.pi)
     cr.arc(x0 + r, y0 + r, r, math.pi, 3 * math.pi / 2)
     cr.close_path()
+
+
+def _swatch(rgb, size=28):
+    """A small rounded colour chip."""
+    da = Gtk.DrawingArea()
+    da.set_content_width(size)
+    da.set_content_height(size)
+    da.set_valign(Gtk.Align.CENTER)
+    rgb = list(rgb) if rgb else [60, 60, 66]
+
+    def draw(_a, cr, w, h):
+        _rounded(cr, 1, 1, w - 1, h - 1, 7)
+        cr.set_source_rgb(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255)
+        cr.fill_preserve()
+        cr.set_source_rgba(1, 1, 1, 0.18)
+        cr.set_line_width(1)
+        cr.stroke()
+    da.set_draw_func(draw)
+    return da
 
 
 def _set_part_color(part, rgb):
@@ -627,7 +659,84 @@ class SceneEditor(Adw.Window):
             self.inspector.append(empty)
             return
 
-        grp = Adw.PreferencesGroup(title=f"{part.type.upper()} · {part.id}")
+        cols = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20)
+        cols.append(self._craft_left(part))
+        cols.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL))
+        right = self._craft_right(part)
+        right.set_hexpand(True)
+        cols.append(right)
+        self.inspector.append(cols)
+
+    # left column: identity + a live preview of just this element + binding
+    def _craft_left(self, part):
+        col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        col.set_size_request(360, -1)
+
+        hdr = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        hdr.append(_swatch(part.fill, 40))
+        names = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        names.set_valign(Gtk.Align.CENTER)
+        nm = Gtk.Label(label=part.id, xalign=0)
+        nm.add_css_class("craft-name")
+        sub = Gtk.Label(label=f"{part.width_mode} {part.type}", xalign=0)
+        sub.add_css_class("editor-hint")
+        names.append(nm)
+        names.append(sub)
+        hdr.append(names)
+        col.append(hdr)
+
+        preview = Gtk.Box()
+        preview.add_css_class("editor-canvas")
+        preview.set_halign(Gtk.Align.FILL)
+        preview.append(self._element_preview(part))
+        col.append(preview)
+
+        if part.type in ("slider", "readout"):
+            eb = Gtk.Label(label="LIVE BINDING", xalign=0)
+            eb.add_css_class("eyebrow")
+            eb.set_margin_top(4)
+            col.append(eb)
+            src = (part.binding or {}).get("source")
+            cur = next((i for i, (_l, s) in enumerate(BINDING_SOURCES) if s == src), 0)
+            bd = Gtk.DropDown.new_from_strings([l for l, _s in BINDING_SOURCES])
+            bd.set_selected(cur)
+            bd.connect("notify::selected",
+                       lambda d, _p, p=part: self._set_binding(p, d.get_selected()))
+            col.append(bd)
+        return col
+
+    def _element_preview(self, part, pw=360, ph=110):
+        """A crisp crop of just this element from a real scene render, at the
+        true 36:1 strip aspect (supersampled) so proportions aren't distorted."""
+        SS = 4
+        RW, RH = 2170 * SS, 60 * SS
+        geom = preview_geometry(RW, RH)
+        theme = (self.cfg.library or {}).get("legacyTheme", {})
+        img = compose.render_scene(self.scene, geom, self._live(), theme=theme)
+        box = next((b for p, b in
+                    compose.layout_parts(self.scene.parts, RW, RH, geom["margin"], geom["gap"])
+                    if p is part), None)
+        if box is not None:
+            x0, _y0, x1, _y1 = (int(v) for v in box)
+            pad = 12 * SS
+            img = img.crop((max(0, x0 - pad), 0, min(RW, x1 + pad), RH))
+        pic = Gtk.Picture.new_for_paintable(pil_to_texture(img))
+        pic.set_content_fit(Gtk.ContentFit.CONTAIN)
+        pic.set_size_request(pw, ph)
+        return pic
+
+    def _set_binding(self, part, sel):
+        src = BINDING_SOURCES[sel][1]
+        part.binding = {"source": src} if src else None
+        self._schedule_apply()
+
+    # right column (temporary until the Layer Loom lands): the part's properties
+    def _craft_right(self, part):
+        col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        eb = Gtk.Label(label="LOOK", xalign=0)
+        eb.add_css_class("eyebrow")
+        col.append(eb)
+        grp = Adw.PreferencesGroup()
 
         if part.type in ("key", "label", "readout"):
             il = part.icon_layer()
@@ -677,7 +786,7 @@ class SceneEditor(Adw.Window):
         srow.connect("notify::active",
                      lambda s, _p, p=part: self._set_width(p, s.get_active()))
         grp.add(srow)
-        self.inspector.append(grp)
+        col.append(grp)
 
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         bar.set_margin_top(4)
@@ -692,7 +801,8 @@ class SceneEditor(Adw.Window):
         bar.append(right)
         bar.append(Gtk.Box(hexpand=True))
         bar.append(rm)
-        self.inspector.append(bar)
+        col.append(bar)
+        return col
 
     # -- edits ----------------------------------------------------------------
     def _set_label(self, part, text):
