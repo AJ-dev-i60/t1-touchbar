@@ -36,6 +36,11 @@ def main(argv=None):
                         help="drive the Touch Bar from a Scenes config (new runtime, hot-reload)")
     rn.add_argument("-c", "--config", required=True)
 
+    se = sub.add_parser("scene-edit",
+                        help="open Scene Home — the native GTK Scenes app")
+    se.add_argument("-c", "--config", required=True)
+    se.add_argument("--shot", help=argparse.SUPPRESS)   # render UI to PNG and exit
+
     sr = sub.add_parser("scene-render",
                         help="render a Scenes config to a PNG (new compositor, no hardware)")
     sr.add_argument("-c", "--config", required=True, help="a Scenes config")
@@ -81,6 +86,13 @@ def main(argv=None):
             ap.error("scene-run must be root (USB + uinput)")
         from .scene_runtime import SceneRuntime
         SceneRuntime(args.config).run()
+        return 0
+
+    if args.cmd == "scene-edit":
+        if not os.path.exists(args.config):
+            ap.error(f"config not found: {args.config}")
+        from .scene_app import run as run_app
+        run_app(args.config, shot=getattr(args, "shot", None))
         return 0
 
     if args.cmd == "convert":
