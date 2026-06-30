@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=t1bar studio
+GenericName=Touch Bar Scenes Designer
+Comment=Design your MacBook Touch Bar with Scenes — live on the hardware
+Exec=/usr/local/bin/t1bar scene-edit -c CONFIG_PATH
+Icon=t1bar-studio
+Terminal=false
+Categories=Utility;
+Keywords=touchbar;t1;macbook;ibridge;scenes;
+StartupNotify=true

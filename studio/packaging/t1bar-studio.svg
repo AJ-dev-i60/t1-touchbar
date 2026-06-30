@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d1d20"/>
+      <stop offset="1" stop-color="#0b0b0d"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e3b34f"/>
+      <stop offset="0.5" stop-color="#c8902f"/>
+      <stop offset="1" stop-color="#9c6c1f"/>
+    </linearGradient>
+    <radialGradient id="liveglow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#46c479" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#46c479" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- graphite app tile -->
+  <rect width="256" height="256" rx="58" fill="url(#tile)"/>
+  <rect x="0.5" y="0.5" width="255" height="255" rx="57.5" fill="none"
+        stroke="#ffffff" stroke-opacity="0.07"/>
+
+  <!-- the strip (the only place colour lives) -->
+  <rect x="28" y="102" width="200" height="52" rx="13" fill="#000000"/>
+  <rect x="29" y="103" width="198" height="50" rx="12" fill="none"
+        stroke="#ffffff" stroke-opacity="0.06"/>
+
+  <!-- parts: solid · metal · outline(ghost) · live(green) -->
+  <rect x="42"  y="114" width="34" height="28" rx="7" fill="#3a6ea5"/>
+  <rect x="84"  y="114" width="30" height="28" rx="7" fill="url(#metal)"/>
+  <rect x="122" y="114.5" width="29" height="27" rx="7" fill="none"
+        stroke="#9a9aa0" stroke-width="2"/>
+  <circle cx="196" cy="128" r="34" fill="url(#liveglow)"/>
+  <rect x="159" y="114" width="48" height="28" rx="7" fill="#46c479"/>
+  <!-- a play glyph on the green part, hinting "live / active scene" -->
+  <path d="M177 121 L177 135 L189 128 Z" fill="#0b0f0c"/>
+
+  <!-- contextual "live" status dot, top-right -->
+  <circle cx="206" cy="50" r="16" fill="url(#liveglow)"/>
+  <circle cx="206" cy="50" r="7" fill="#46c479"/>
+</svg>

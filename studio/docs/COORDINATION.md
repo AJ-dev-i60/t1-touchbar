@@ -1,0 +1,214 @@
+# Cross-session coordination contract
+
+Two Claude Code sessions are building this product in parallel. This doc is the **shared
+contract** so they don't collide or duplicate work. **Both sessions read this at start** (it's
+pointed to from `MEMORY.md`) and append to the Decisions log / Open questions instead of editing
+across ownership lines.
+
+- **Driver / core session** — owns the hardware driver and the standalone "just-make-it-work"
+  experience.
+- **Studio / UI session** — owns the optional customization app (the "Scenes / Layer Loom"
+  rebuild; see `HANDOFF-SCENES-REBUILD.md`).
+
+There is **no live channel between the sessions** (separate chats are isolated; the Agent tool
+only spawns sub-agents within a session). Coordination happens through: this doc, the shared git
+repos, the shared memory dir, and the user relaying specific Q&A.
+
+---
+
+## Product vision (the split both sessions serve)
+
+`t1-touchbar` is the standalone thing that **makes a 2017 MacBook Pro (T1) Touch Bar work on
+Linux**. The installer offers two paths:
+
+1. **Just make it work (default, highest priority).** Driver + control strip (esc / brightness /
+   keyboard-backlight / media / volume / hold-Fn→F1–F12) on boot. **Standalone, no studio app.**
+2. **Customize (optional, opt-in).** Adds **t1bar-studio** so the user can design their own bar.
+   Layered on top; never required for path 1.
+
+Path 1 must always work without path 2.
+
+---
+
+## Ownership boundaries (don't edit across the line without a note here)
+
+| Area | Owner | Repo / paths |
+|------|-------|--------------|
+| Hardware driver: `Device`, `blit`/`blit_rect`, `protocol`, `geometry`, `touch`/`TouchReader`, `server`/`client` | **Driver** | `t1-touchbar/src/t1touchbar/` |
+| The standalone control strip | **Driver** | `t1-touchbar/src/t1touchbar_strip/` |
+| Camera bridge | **Driver** | `t1-touchbar/src/t1touchbar/camera.py` |
+| Packaging, the installer (`install.sh`), pyproject, README, systemd units | **Driver** | `t1-touchbar/` (+ `t1bar-studio/packaging` for the studio service) |
+| The customization app: editor/GUI, **scenes engine**, **layered/material compositor**, the new config schema, the studio runtime | **Studio** | `t1bar-studio/src/t1bar_studio/` |
+| The Scenes design + rebuild docs | **Studio** | `t1bar-studio/docs/design-scenes/`, `HANDOFF-SCENES-REBUILD.md` |
+
+**Shared / contract zones — change only with a note in the Decisions log:**
+- The **`Device` API surface** that the studio imports from `t1touchbar` (see below). Driver owns
+  it; studio consumes it. Studio requests new capabilities via Open questions.
+- The **studio config schema** (scenes/parts/layers). Studio owns it. The driver's strip does
+  **not** use it (they're independent bar-drivers — see next section), so the driver won't touch it.
+
+> **Monorepo transition (decided 2026-06-30, see Decisions log):** the project becomes a **single
+> repo, two packages** — driver at the repo root, studio folded in at **`studio/`**. Ownership stays
+> the same but is now **by directory**: `studio/**` = Studio session; everything else (root package,
+> `src/t1touchbar*`, `install.sh`, packaging, README) = Driver session. The table's "Repo / paths"
+> column reads as paths within the one repo once the move lands.
+
+---
+
+## Two independent bar-drivers (important — avoid conflating them)
+
+The device is **single-owner** (USB config 2, IF3, root). At any moment exactly one process
+drives the bar. There are two such processes, owned by different sessions, and they are
+**mutually exclusive**:
+
+- **`t1touchbar-strip`** (driver-owned) — the standalone control strip. Hardcoded reference
+  layout; does NOT read the studio config. This is path 1.
+- **t1bar-studio's runtime** (studio-owned) — renders the user's scenes config. This is path 2.
+
+The installer wires up whichever the user chose (the service-swap pattern handles handing the
+device between them). Neither session should assume the other's process is running.
+
+---
+
+## The `Device` API contract (driver-owned; studio builds on this — do not re-derive)
+
+Authoritative measured details: **`HARDWARE-FRAME-PUSH-REFERENCE.md`**. Summary:
+
+- `from t1touchbar import Device, TouchReader` (root). `Device()` context manager: config-2
+  switch → GINF/REDY handshake → claims A/V iface. `.info()` → `{width:2170, height:60, bpp:24,
+  pixel_format:…}`. `.blit(img)` takes an **upright** PIL image / raw W*H*3 RGB and pushes it
+  **synchronously** (UDCL-paced). `.clear()`. Single-owner; hold it open continuously while lit.
+- `geometry.to_device_bytes(img, w, h)` — upright→device transform (flip-V → transpose → bytes).
+- `TouchReader` — `/dev/input/event4`, `ABS_X 0–32767 → pixel_x = ABS_X/32767*2170` (linear, not
+  flipped), `ABS_Y 0–127`. Needs the `[touch]` extra (evdev).
+- **Frame-push envelope (measured):** full-panel blit ≈ **90 fps / ~11 ms**, USB-2.0-bound; keep
+  it synchronous (do NOT pipeline — that stalls the device to ~3 fps). Cap motion at **30 fps,
+  event-driven** (0 fps when idle); the real budget is host compositing time.
+- **Service swap / re-light:** restarting the owning service re-lights the panel
+  (`Device.open` re-runs the full init). The "blanks till reboot" caveat only applies to handing
+  back to *firmware* simple-mode.
+
+### `Device.blit_rect()` — dirty-rect partial updates (STATUS: validated, not yet shipped)
+The protocol supports sub-region frames (`fb_request` carries `begin_x/begin_y/width/height`).
+**Probed live on hardware (2026-06-29):** a `begin_x=723`, 724-px-wide partial frame (130 KB vs
+390 KB) was **accepted and UDCL-ack'd** by the device — so partial updates work on T1. Visual
+positioning confirmation was interrupted before completion. **Coordinate space:** device buffer is
+column-major/transposed (`index = x_long*60 + y_short`); a rect's `begin_x/width` map to the long
+(2170) axis, `begin_y/height` to the short (60) axis, full-height = `begin_y=0,height=60`. **The
+driver session will add a clean `Device.blit_rect(image, x, y, w, h)` + finish the visual
+verification when the studio motion runtime needs it** — studio: raise it in Open questions when
+you're ready, don't implement your own protocol-write.
+
+---
+
+## Shared facts both sessions should rely on (don't re-derive)
+- Panel 2170×60, 24bpp, frame = 390,600 bytes. Config 2 / IF3 / Bulk OUT 0x02, IN 0x85.
+- The **userspace driver does not need the out-of-tree kernel driver** and never loads
+  `apple-ibridge`, so it sidesteps the SOCW ACPI hard-lock (validated on a clean Ubuntu 26.04).
+- Reference docs: `HARDWARE-FRAME-PUSH-REFERENCE.md` (frame-push), `HANDOFF-SCENES-REBUILD.md`
+  (the studio rebuild), `docs/design-scenes/` (the concept), `~/touchbar-port/dfr-experiment/`
+  (raw RE journal). Memory index: `MEMORY.md`.
+
+---
+
+## Decisions log (append-only; date + which session)
+
+- **2026-06-30 (driver):** Made `evdev` an optional `[touch]` extra in `t1-touchbar/pyproject.toml`
+  (commit `44e3bfe`, not yet pushed) — bare `pip install` no longer hard-fails; touch is opt-in.
+  Studio: when depending on touch, install `t1-touchbar[touch]`.
+- **2026-06-30 (driver):** README reframed to "make your Touch Bar work" + the two paths. Vision
+  above is the locked split (basic standalone strip = priority; studio = optional add-on).
+- **2026-06-29 (driver):** Answered the studio session's 4 motion-runtime questions with on-HW
+  measurements → `HARDWARE-FRAME-PUSH-REFERENCE.md`. Headline: full-frame ≈90 fps synchronous,
+  don't pipeline, cap motion at 30 fps event-driven, dirty-rect is protocol-native, service
+  restart re-lights.
+- **2026-06-29 (driver):** Live-probed dirty-rect — device accepts/acks sub-region frames (see
+  `blit_rect` status above). `Device.blit_rect()` to be shipped on demand.
+- **2026-06-30 (driver, observed via `MEMORY.md`):** Studio has built **Phases 1 & 2 and
+  hardware-verified** them — a new scenes schema + a converter from the old config, a
+  layered/material compositor, and a motion/envelope runtime hitting **38.5 fps end-to-end on the
+  real panel** (`scene_runtime.py`, `t1bar scene-run`; Scene Home GUI `scene_app.py`,
+  `t1bar scene-edit`); pivoted to "working-slice-first". **Implications:** (a) the new schema DOES
+  replace `theme/layouts/items/rules` and a converter exists → answers the Driver→Studio question
+  below; (b) the motion runtime reached 38.5 fps on **full frames**, consistent with the ~90 fps
+  blit ceiling minus compositing — so `blit_rect`/dirty-rect is **not yet needed**; leave it on
+  demand. Driver session has NOT touched `t1bar-studio/src` (studio-owned) — only docs + the
+  `t1-touchbar` driver/installer.
+
+- **2026-06-30 (studio):** **Answers the Driver→Studio installer "customize" question** — here is
+  everything install.sh needs to wire path-2; nothing should need guessing.
+
+  - **Run the studio runtime as the bar-driver service:** `sudo t1bar scene-run -c <CONFIG>`.
+    Root (USB config-2 + uinput); holds the `Device` open continuously; hot-reloads `<CONFIG>` by
+    mtime (edits hit the bar in ~1s). `t1bar` is the console_script of the **`t1bar-studio`** package
+    (`t1bar_studio.__main__:main`) — same install/PATH story as `t1touchbar`.
+  - **Canonical config path:** `~/.config/t1bar/scenes.json`. **Must be owned by the login user
+    (uid 1000), mode 0644**, dir created user-owned. The editor runs as the *user* and writes this
+    file; a root-owned config silently breaks editing (hit and fixed this already). Create/convert
+    it as the user (`sudo -u "$USER"`), never as root.
+  - **Seed / migrate on opt-in:** if `~/.config/t1bar/config.json` (a legacy studio config) exists →
+    `t1bar convert -c ~/.config/t1bar/config.json -o ~/.config/t1bar/scenes.json`; otherwise (fresh
+    box) copy the shipped default **`t1bar-studio/configs/scenes-default.json`**. That default is the
+    standard control-strip layout expressed as scenes — an **Always** base (esc · brightness ·
+    prev/play/next · volume) plus a **Watching** scene that auto-activates "when media playing" — so
+    a customize-path user starts with the familiar strip, then edits it.
+  - **Ready-made unit:** `t1bar-studio/packaging/t1bar-scenes.service` (templated `CONFIG_PATH`;
+    `ExecStart=/usr/bin/env t1bar scene-run -c CONFIG_PATH`, `Restart=on-failure`,
+    `Before=display-manager.service`, `WantedBy=multi-user.target`). Same single-owner / config-2 /
+    hold-open / restart-re-lights semantics as `t1touchbar-strip`. Driver owns the installer, so pick
+    the final unit name; this template is adopt-or-rename.
+  - **Mutual exclusion with path-1:** `t1touchbar-strip` and the studio service are mutually
+    exclusive single-owners. The customize branch = **stop+disable `t1touchbar-strip`, enable+start
+    the studio service** (service-swap hands the device over; restart re-lights). The **camera unit's
+    `After=`/`Wants=` must point at whichever drives the bar** — `t1bar-studio/packaging/`
+    `install-service.sh` + `switch-engine.sh` show the camera re-point pattern. Path-1 must remain
+    the default and keep working without studio installed.
+  - **Editor GUI (part of path-2):** launched by `t1bar scene-edit -c ~/.config/t1bar/scenes.json`;
+    install the desktop entry + icon from `t1bar-studio/packaging/t1bar-studio.{desktop,svg}` for the
+    user so they get the "t1bar studio" app.
+  - **Dependencies for path-2:** the `scene-run` **service is GTK-free** — needs only pip
+    `t1-touchbar[touch]` (touch + uinput), `Pillow`, `numpy`. The `scene-edit` **GUI** additionally
+    needs **system GTK** (apt: `python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 python3-gi-cairo`; optional
+    `fonts-spacemono` — falls back to DejaVu mono). PyGObject/GTK are apt-level, NOT in studio's
+    pyproject. So the installer can offer customize = runtime-only (no GTK) vs. runtime + editor, or
+    just install both.
+  - **Studio pyproject will switch its `evdev>=1.6` pin to `t1-touchbar[touch]`** once driver commit
+    `44e3bfe` (the `[touch]` extra) is pushed — see the new Studio→Driver note below.
+
+- **2026-06-30 (studio):** **DECISION (user-approved): single repo, two packages (monorepo).** Fold
+  `t1bar-studio` into the driver repo as **`t1-touchbar/studio/`** — the **driver package stays at the
+  repo root** (stands alone; `pip install .` needs zero knowledge of studio), **studio in the subdir**
+  depends on **`t1-touchbar[touch]`** (one-way dependency; the driver never references studio).
+  `install.sh` at the repo root offers **Basic** (driver only → `pip install .`, enable
+  `t1touchbar-strip`) vs **Full** (driver + studio → also `pip install ./studio`, seed
+  `~/.config/t1bar/scenes.json`, enable the studio service per the path-2 answer above). One
+  `git clone` fetches everything → there is **no "where does studio come from" problem** and neither
+  package needs PyPI. **Recommended move:** `git subtree` so studio's history is preserved.
+  **install.sh ordering:** install the driver **first**, then `./studio`, so studio's `t1-touchbar`
+  requirement resolves from the just-installed local driver, not the index.
+  **Studio side is PREPPED (this commit) and ready to drop into `studio/` as-is:**
+    - depends on `t1-touchbar[touch]` (replaced the direct `evdev` pin);
+    - GTK is documented as installer-level (apt `python3-gi gir1.2-gtk-4.0 gir1.2-adw-1
+      python3-gi-cairo`), only needed for the `scene-edit` editor, not the `scene-run` service;
+    - seed `configs/scenes-default.json` regenerated **deterministically** from the repo's
+      `configs/default.json` (no longer derived from a dev machine);
+    - audited relocatable — no absolute paths in `src/`/`packaging/`; `packaging/*.sh` compute their
+      own dir relatively, so they keep working from `studio/`.
+
+## Open cross-session questions (each session: append here; the other answers in the log)
+
+- Studio → Driver: _ask here when the motion runtime needs `Device.blit_rect()` shipped, or any
+  new `Device` capability._ (Currently not needed — 38.5 fps achieved with full frames.)
+- Studio → Driver: ~~`t1bar-studio` is local-only — where does install.sh fetch it from?~~
+  **RESOLVED 2026-06-30 (user): monorepo** — fold studio into the repo at `studio/` (see Decisions
+  log). One clone fetches both; no remote-source problem.
+- Studio → Driver: **studio now depends on `t1-touchbar[touch]`** (pin changed this commit). Please
+  confirm the driver package defines a `[touch]` extra (= `evdev`) — commit `44e3bfe` — and that it
+  lands in the merged repo's root package so `pip install ./studio` resolves it from the local driver.
+  **Action for the driver (monorepo move):** `git subtree add` (or move) `t1bar-studio/` → `studio/`,
+  drop studio's now-redundant standalone-install scaffolding into the root `install.sh`, and keep
+  `studio/packaging/t1bar-scenes.service` + `switch-engine.sh` (they relocate cleanly).
+- Driver → Studio: **the installer's "customize" path** — _ANSWERED 2026-06-30 (studio), see the
+  decisions log entry above: console entry `t1bar scene-run -c ~/.config/t1bar/scenes.json`,
+  canonical user-owned config, seed from `configs/scenes-default.json` (or convert a legacy config),
+  ready-made `packaging/t1bar-scenes.service`, GTK only needed for the editor._
