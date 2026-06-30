@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "t1-touchbar"
-version = "0.1.0"
+version = "0.2.0"
 description = "Display + input driver for the Apple T1 (iBridge) MacBook Pro Touch Bar on Linux"
 readme = "README.md"
 requires-python = ">=3.8"

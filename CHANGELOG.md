@@ -3,10 +3,18 @@
 All notable changes to this project are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.0] — 2026-06-30
 
-Hardening from the first clean-machine validation (MacBookPro14,3 / Ubuntu 26.04 / kernel
-7.0.0-27 — Basic mode verified: DKMS builds, driver binds after reboot, webcam intact).
+The Basic firmware-driver engine, hardened and **validated on real hardware**
+(MacBookPro14,3 / Ubuntu 26.04 / kernel 7.0.0-27 — three independent clean-machine runs).
+DKMS builds on kernel 7, the driver binds after reboot, the webcam stays native, and inputs
+(hold-Fn→F1–F12, brightness, volume + OSD) all work. The `skip_acpi_power` freeze-guard's
+auto-default was confirmed on hardware: a bare `modprobe apple_ibridge` (no parameter, no
+modprobe.conf) does **not** freeze the machine — the in-driver DMI auto-skip handles it.
+
+**Scope:** this release covers **Basic** (the firmware driver) only. **Full / t1bar studio remains
+experimental and in development** — it ships in the repo but is not validated for general use and is
+not part of this release's guarantees.
 
 ### Added
 - Installer self-check (Basic): greps the healthy dmesg/lsmod signature and prints a clear

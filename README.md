@@ -6,11 +6,14 @@ On the 2016–2017 MacBook Pros (MacBookPro13,x / 14,x) the Touch Bar is a **T1*
 device, and mainline Linux only ever supported the **T2** models — so the bar was just a black
 strip. This project lights it up, two ways:
 
-- **Just make it work** — the T1's **own firmware** draws the normal control strip (Esc,
-  brightness, keyboard backlight, media, volume, and hold-**Fn** for **F1–F12**), exactly like
-  macOS. Set-and-forget; your webcam keeps working too. *This is the default.*
-- **Customize (optional)** — hand the whole bar to the **t1bar studio** app and design your own,
-  with a fully programmable 2170×60 pixel surface and finger touch.
+- **Just make it work** — ✅ **stable, validated on hardware.** The T1's **own firmware** draws the
+  normal control strip (Esc, brightness, keyboard backlight, media, volume, and hold-**Fn** for
+  **F1–F12**), exactly like macOS. Set-and-forget; your webcam keeps working too. *This is the
+  default, and what most people want.*
+- **Customize (optional)** — 🚧 **experimental / work in progress.** Hand the whole bar to the
+  **t1bar studio** app and design your own, with a programmable 2170×60 pixel surface and finger
+  touch. The pieces work in development, but this path is **not yet validated for general use** and
+  may change — try it only if you're happy to tinker.
 
 > ⚠️ **One safety note up front.** On these 2016/2017 models there's an ACPI power-on call
 > (`ASOC.SOCW(1)`) that **hard-freezes the machine** — recoverable only by holding the power button.
@@ -23,17 +26,24 @@ strip. This project lights it up, two ways:
 curl -fsSL https://raw.githubusercontent.com/AJ-dev-i60/t1-touchbar/main/install.sh | bash
 ```
 
-…then choose **Basic** (just make it work) or **Full** (+ studio). No `git` needed — the
-installer fetches itself.
+…then choose **Basic** (just make it work — recommended) or **Full** (+ studio, experimental). No
+`git` needed — the installer fetches itself.
 
-> As far as the public record shows, this is the first time a T1 Touch Bar has been driven from
-> Linux with **both** the normal keys *and* custom graphics. Reverse-engineering story:
+> **Project status:** **Basic is done** — it's been validated end-to-end on real hardware
+> (MacBookPro14,3 / Ubuntu 26.04 / kernel 7.0.0-27) across multiple clean installs. **Full (studio)
+> is still in development** and isn't validated for general use yet. If you just want a working Touch
+> Bar, use Basic.
+>
+> As far as the public record shows, this is the first time the T1 Touch Bar has been driven from
+> Linux at all (the firmware control strip on kernel 7); custom host-drawn graphics work in
+> development and are what the in-progress studio builds on. Reverse-engineering story:
 > [`docs/DEVGUIDE.md`](docs/DEVGUIDE.md).
 
 ## Two ways to use it — two different engines
 
 |  | **Basic** (default) | **Full** (optional) |
 |---|---|---|
+| Status | ✅ stable, hardware-validated | 🚧 experimental, in development |
 | What you get | the normal firmware control strip | design your own bar (Scenes) |
 | Who draws the bar | the **T1 firmware** | the **host**, custom pixels |
 | Engine | the **`apple-ib-drv` kernel driver** ([`apple-ib-drv/`](apple-ib-drv/)) | userspace libusb + **t1bar studio** ([`studio/`](studio/)) |
