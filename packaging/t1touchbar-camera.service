@@ -1,11 +1,12 @@
 [Unit]
 Description=T1 Touch Bar webcam bridge (on-demand, via v4l2loopback)
 Documentation=https://github.com/AJ-dev-i60/t1-touchbar
-# The camera attaches the iBridge IF1 *inside* the config-2 session that the strip
-# holds, so order it after the strip. Wants (not Requires) so the camera still
-# tries if the strip is absent — on-demand will simply wait for config 2.
-After=t1touchbar-strip.service
-Wants=t1touchbar-strip.service
+# The webcam bridge is only used in Full (studio) mode: the camera attaches the
+# iBridge IF1 *inside* the config-2 session the studio holds, so order it after the
+# studio service. Wants (not Requires) so it still tries if that's absent —
+# on-demand simply waits for config 2.
+After=t1bar-scenes.service
+Wants=t1bar-scenes.service
 # Be watching the loopback before the greeter so Howdy face-login works at login.
 Before=display-manager.service
 

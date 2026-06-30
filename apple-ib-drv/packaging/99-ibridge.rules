@@ -1,0 +1,7 @@
+# Apple T1 iBridge (05ac:8600) on 2016/2017 Touch Bar MacBook Pros.
+# These machines leave the iBridge UNCONFIGURED, so nothing appears. Force USB
+# configuration 1 — it exposes the Touch Bar HID interfaces (for apple-ibridge) AND
+# the FaceTime HD camera's UVC interfaces (so the webcam works too). Also disable
+# USB autosuspend (the touch-bar suspend paths crash the driver without it).
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="05ac", ATTR{idProduct}=="8600", ATTR{bConfigurationValue}="1"
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="05ac", ATTR{idProduct}=="8600", TEST=="power/control", ATTR{power/control}="on"

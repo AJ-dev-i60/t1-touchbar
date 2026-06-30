@@ -2,88 +2,86 @@
 
 **Make your 2017 MacBook Pro (T1) Touch Bar work on Linux.**
 
-Install it and the Touch Bar lights up with a real control strip — **Esc, brightness,
-keyboard backlight, media (⏮ ▶ ⏭), volume**, and **hold the physical Fn key for F1–F12** —
-running from boot, with the native on-screen volume/brightness OSD. That's the default, and it
-works on its own, with no other software.
+On the 2016–2017 MacBook Pros (MacBookPro13,x / 14,x) the Touch Bar is a **T1** ("iBridge")
+device, and mainline Linux only ever supported the **T2** models — so the bar was just a black
+strip. This project lights it up, two ways:
 
-Underneath, it's a clean **display + input driver** for the T1 (iBridge) Touch Bar: it speaks
-the device's **DFR display protocol** and reads its **touch digitizer**, so the bar is also a
-fully programmable 2170×60 surface — render anything at ~90 fps and get mapped touch events
-back. So when the default strip isn't enough, you can **design your own** (see *Customize*).
+- **Just make it work** — the T1's **own firmware** draws the normal control strip (Esc,
+  brightness, keyboard backlight, media, volume, and hold-**Fn** for **F1–F12**), exactly like
+  macOS. Set-and-forget; your webcam keeps working too. *This is the default.*
+- **Customize (optional)** — hand the whole bar to the **t1bar studio** app and design your own,
+  with a fully programmable 2170×60 pixel surface and finger touch.
 
-> The 2016–2017 MacBook Pros (MacBookPro13,x / 14,x) have a **T1** Touch Bar. Mainline Linux
-> only ever supported the **T2** models — on a T1 the bar was just a black strip. As far as the
-> public record shows, this is the first time a T1 Touch Bar has been driven from Linux, with
-> the normal keys *and* custom graphics. Full reverse-engineering story:
+```bash
+git clone https://github.com/AJ-dev-i60/t1-touchbar
+cd t1-touchbar
+sudo ./install.sh        # choose Basic (just make it work) or Full (+ studio)
+```
+
+> As far as the public record shows, this is the first time a T1 Touch Bar has been driven from
+> Linux with **both** the normal keys *and* custom graphics. Reverse-engineering story:
 > [`docs/DEVGUIDE.md`](docs/DEVGUIDE.md).
 
-## Two ways to use it
+## Two ways to use it — two different engines
 
-**1 · Just make it work (the default).** Install the driver + the control strip and your Touch
-Bar behaves like a normal Mac control strip — esc / brightness / keyboard-backlight / media /
-volume, and hold-Fn for F1–F12 — starting on every boot. **Standalone; nothing else required.**
-This is the priority path: *just make my Touch Bar work.*
+|  | **Basic** (default) | **Full** (optional) |
+|---|---|---|
+| What you get | the normal firmware control strip | design your own bar (Scenes) |
+| Who draws the bar | the **T1 firmware** | the **host**, custom pixels |
+| Engine | the **`apple-ib-drv` kernel driver** ([`apple-ib-drv/`](apple-ib-drv/)) | userspace libusb + **t1bar studio** ([`studio/`](studio/)) |
+| USB config | config 1 | config 2 |
+| Webcam | works natively | routed through a bridge |
+| Footprint | set-and-forget; no daemon | a service owns the bar; needs a reboot to switch |
 
-**2 · Customize (optional).** The strip is built on a small public Python/socket API, so you can
-design your own layouts, widgets, and actions — by hand against the library, or with the
-**t1bar-studio** UI tool (a separate project). The core driver stays a thin, pure surface; all
-the opinion lives on top. You opt into this; it's never needed for path 1.
+They are **mutually exclusive** (only one process can own the bar). Switching between them is a
+reboot. **Uninstalling Full returns you to Basic** — the plain firmware strip.
+
+> **Which should I pick?** If you just want the bar to behave like it does on macOS and never
+> think about it again: **Basic.** If you want to design custom layouts, colors, and behaviours:
+> **Full** (you can always add it later, or remove it to go back).
 
 ## Requirements
 
 - A MacBook Pro with a **T1** chip (USB `05ac:8600` "iBridge"), running Linux. *(Not T2 — those
   are handled by the mainline `appletbdrm`.)*
-- **Root** — USB control transfers + a brief kernel-module unload.
-- **System packages:**
-  - `libusb-1.0` — always (USB access).
-  - `build-essential` + `python3-dev` — to build **`evdev`** for **touch** (tapping the strip's
-    buttons). There's no PyPI wheel, so without these the strip *displays* but the buttons don't
-    respond.
-  - `playerctl` — the media ⏮ ▶ ⏭ buttons (volume uses `wpctl` / PipeWire).
-  - *(optional)* `ffmpeg` + `v4l2loopback` — only for the webcam bridge.
-- **Python packages:** `pyusb`, `Pillow` (both ship wheels, incl. Python 3.14). `evdev` is an
-  optional extra (`[touch]`) and is lazy-imported, so the display path works without it.
+- **Root** for installation.
+- **Basic** pulls: `build-essential`, `linux-headers-$(uname -r)`, `dkms` (to build the kernel
+  module; DKMS rebuilds it automatically on kernel upgrades).
+- **Full** additionally pulls: Python/venv, GTK (`python3-gi gir1.2-gtk-4.0 gir1.2-adw-1
+  python3-gi-cairo`) for the editor, `playerctl`, and `ffmpeg` + `v4l2loopback-dkms` for the
+  webcam bridge.
 
-## Install — "just make it work"
+`install.sh` installs all of these for you.
 
-> **Not on PyPI yet** — install from a clone. The one git clone contains everything (the driver
-> at the root, the studio app under `studio/`).
-
-The installer bootstraps the prerequisites and offers the **Basic** vs **Full** choice:
+## Install
 
 ```bash
-git clone https://github.com/AJ-dev-i60/t1-touchbar
-cd t1-touchbar
-sudo ./install.sh           # asks: Basic (just the strip) or Full (+ studio app)
-#   sudo ./install.sh --basic   # non-interactive
-#   sudo ./install.sh --full    # ...also installs the customization studio
+sudo ./install.sh            # interactive: Basic or Full
+#   sudo ./install.sh --basic    # firmware strip only
+#   sudo ./install.sh --full     # ...also the studio (custom bar)
 #   --dry-run shows exactly what it would do, changing nothing
 ```
 
-**Basic** installs the driver + control strip and enables it on boot — your Touch Bar just works.
-**Full** adds the **t1bar studio** app for designing your own bar (see *Customize*). The installer
-detects the T1, installs the apt prerequisites, sets up a venv, and wires the systemd service.
+- **Basic** → DKMS-builds the firmware driver, sets the critical `skip_acpi_power=1` parameter,
+  and loads it. Your bar lights up; reboot once if it doesn't immediately.
+- **Full** → installs the studio engine + webcam bridge, stands the firmware driver down, and
+  asks you to **reboot** to hand the bar to the studio. Then open **"t1bar studio"** to design it.
 
-<details><summary>Prefer to do it by hand?</summary>
+## The firmware driver (Basic)
 
-```bash
-sudo apt install -y python3-pip python3-venv git libusb-1.0-0 build-essential python3-dev playerctl
-python3 -m venv .venv && . .venv/bin/activate
-pip install '.[touch]'            # omit [touch] for a display-only (non-tappable) install
-sudo .venv/bin/t1touchbar-strip   # welcome, then the control strip
-sudo bash packaging/install-service.sh   # ...and to start it on every boot
-```
-</details>
-
-That's the whole basic experience. Everything below is for path 2 — building your own bar.
+[`apple-ib-drv/`](apple-ib-drv/) is the kernel module that does Basic — a fork of
+[`t2linux/apple-ib-drv`](https://github.com/t2linux/apple-ib-drv) with five fixes for Linux 7.x on
+the T1 (the key one being `skip_acpi_power`, which avoids an ACPI hard-lock at load). It's **GPL-2.0**
+(the rest of this repo is MIT). See [`apple-ib-drv/README.md`](apple-ib-drv/README.md).
 
 ---
 
-## Customize — build your own bar
+## Customize — the programmable surface (Full)
 
-The same driver that powers the strip is a public API. Consume it as a **Python library** or as
-a language-agnostic **Unix-socket daemon**.
+Full is built on a thin **display + input driver** (this repo's root package, `t1touchbar`): it
+speaks the device's **DFR** protocol and reads its **touch digitizer**, giving a programmable
+2170×60 surface — render anything at ~90 fps and get mapped touch events back. The **t1bar studio**
+app ([`studio/`](studio/)) is the design tool on top; you can also drive it directly:
 
 ### Python
 
@@ -97,11 +95,9 @@ with Device() as bar:                       # switches config, handshakes, resto
     ImageDraw.Draw(img).text((20, 10), "Hello from Linux", fill=(0, 255, 120))
     bar.blit(img)                           # ~90 fps full-panel; geometry/colour handled
 
-    def on_touch(ev):                       # ev.state ('down'/'move'/'up'), ev.x, ev.y
-        print(ev)
-    tr = TouchReader(w, h); tr.start(on_touch)   # needs the [touch] extra
-    input("touch the bar; enter to quit\n")
-    tr.stop()
+    def on_touch(ev): print(ev)             # ev.state ('down'/'move'/'up'), ev.x, ev.y
+    tr = TouchReader(w, h); tr.start(on_touch)   # needs the [touch] extra (evdev)
+    input("touch the bar; enter to quit\n"); tr.stop()
 ```
 
 ### Socket daemon (any language)
@@ -110,73 +106,52 @@ with Device() as bar:                       # switches config, handshakes, resto
 sudo t1touchbar serve            # owns the device; prints the socket path
 ```
 
-Connect to the Unix socket (default `/tmp/t1touchbar.sock`) and exchange length-prefixed
-messages — `FRAME` / `IMG` / `CLEAR` in, `TOUCH` events out. Full spec in
-[`docs/PROTOCOL.md`](docs/PROTOCOL.md). A Python client is included:
+Connect to the Unix socket (default `/tmp/t1touchbar.sock`) and exchange length-prefixed messages
+— `FRAME` / `IMG` / `CLEAR` in, `TOUCH` events out. Spec in [`docs/PROTOCOL.md`](docs/PROTOCOL.md);
+a Python `Client` is included. See [`examples/`](examples/) for finger-tracking ripples, tappable
+buttons, and a marquee.
 
-```python
-from t1touchbar.client import Client
-c = Client()
-c.on_touch(lambda ev: print(ev))     # {'x':418, 'y':30, 'state':'down'}
-c.image("logo.png")
-```
+## Camera — webcam *and* Touch Bar together (Full)
 
-See [`examples/`](examples/): reactive finger-tracking ripples, tappable buttons, and a
-scrolling marquee — all built on the public API.
-
-## Camera — webcam *and* Touch Bar together
-
-The iBridge's config-2 session exposes the FaceTime camera (as **H.264**) right next to the
-display interface, so they coexist. `t1touchbar-camera` captures that stream in userspace and
-pipes it onto a **dedicated v4l2loopback node** — any app then opens it like a normal camera:
+In Basic the firmware uses config 1, so the FaceTime webcam is just an ordinary camera. In **Full**
+the studio takes config 2, where the camera is exposed as **H.264** — so `t1touchbar-camera`
+captures it and pipes it onto a **dedicated v4l2loopback node** any app can open:
 
 ```bash
-sudo modprobe v4l2loopback                 # once (a real install does this at boot)
-sudo t1touchbar-camera --print-device      # prints e.g. DEVICE=/dev/video3, then streams
+sudo t1touchbar-camera --print-device   # prints e.g. DEVICE=/dev/video3, then streams
 #   -> point Howdy / Zoom / your browser at that /dev/video* node
 ```
 
-By design this is **invisible to your real camera**: it creates its *own* loopback node (never
-touches `/dev/video0` or the default device), and when it isn't running the stock config-1
-webcam behaves exactly as before. In Python:
+It creates its *own* loopback (never touches `/dev/video0`), so your real camera is untouched.
+Requires `v4l2loopback` + `ffmpeg` (the installer handles this in Full).
 
-```python
-from t1touchbar import LoopbackBridge
-with LoopbackBridge(size="1280x720") as cam:
-    print("camera at", cam.device)         # stream until the block exits
-```
+## Caveats (the Full / studio path only)
 
-> Requires the `v4l2loopback` kernel module and `ffmpeg`. Raw H.264 frames are available without
-> either via `t1touchbar.Camera(...).stream()` if you want to handle decoding yourself.
+These apply to **Full** (host-driven, config 2) — **not** to Basic, which is plain firmware:
 
-## Important caveats
-
-- **One owner at a time.** Only one process may hold the device (config 2). The strip, the
-  daemon, and a custom script are mutually exclusive — stop one to run another.
-- **Blank until reboot.** Exiting hands display control back, and on T1 the firmware does not
-  reclaim the panel — it stays blank until a reboot. Keep the driver/strip running while you want
-  the bar lit (the service does exactly this).
-- **Coexistence.** The built-in **webcam** *can* run alongside the bar (see Camera). The
-  ambient-light sensor and the stock firmware Fn/media row are unavailable while the driver owns
-  config 2 — the strip provides those keys instead.
-- **Nothing is persistent** — a reboot fully restores the stock Touch Bar.
+- **One owner at a time.** Only one process may hold the device.
+- **Blank until reboot.** Once the host has driven the panel, exiting hands control back but the
+  firmware doesn't reclaim it — it stays blank until a reboot. The studio service holds it lit; this
+  is why switching engines is a reboot.
+- **Coexistence.** The webcam runs alongside the bar via the bridge (above); the ambient-light
+  sensor and firmware key row are unavailable while the studio owns config 2.
+- **Nothing is persistent at the device level** — a reboot into Basic fully restores the firmware bar.
 
 ## How it works
 
-The driver switches the iBridge to its config-2 ("OS X") configuration, claims the Audio/Video
-interface, and speaks the **DFR** protocol (the same one the mainline `appletbdrm` driver uses on
-T2 Macs). Images are transposed + flipped into the device's buffer layout and streamed with
-synchronous pacing. Touch comes from the digitizer the kernel exposes as an evdev "iBridge
-Touchpad", with `ABS_X` / `ABS_Y` mapped to pixels. It runs **entirely in userspace over libusb**
-— it does **not** require the out-of-tree T1 kernel driver, and because it never loads
-`apple-ibridge` it sidesteps that driver's ACPI-power hard-lock. Details and the
-reverse-engineering journal are in [`docs/`](docs/).
+**Basic** loads the `apple-ib-drv` kernel modules in config 1 and tells the T1 to render its
+firmware function/control layouts (the bar draws itself; touches come back as key events).
+**Full** switches the iBridge to its config-2 ("OS X") configuration, claims the Audio/Video
+interface, and speaks the **DFR** protocol (the same one mainline `appletbdrm` uses on T2 Macs),
+streaming host-rendered frames and reading the touch digitizer. The two never run at once.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Build whatever you want on top.
+The userspace driver, studio, and tooling are **MIT** (see [LICENSE](LICENSE)). The bundled kernel
+driver in [`apple-ib-drv/`](apple-ib-drv/) is **GPL-2.0** (its own `LICENSE`).
 
 ## Acknowledgements
 
-Protocol shape informed by the mainline Linux `appletbdrm` (T2) driver and imbushuo's Windows
-DFR work. T1 support, geometry, touch, and this driver are an independent implementation.
+The firmware driver is a fork of `t2linux/apple-ib-drv`. The DFR protocol shape was informed by the
+mainline Linux `appletbdrm` (T2) driver and imbushuo's Windows work. T1 support, geometry, touch,
+and the userspace driver are an independent implementation.

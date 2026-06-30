@@ -1,0 +1,166 @@
+diff --git a/apple-ibridge.c b/apple-ibridge.c
+index 79bba60..0218daf 100644
+--- a/apple-ibridge.c
++++ b/apple-ibridge.c
+@@ -61,6 +61,19 @@
+ 
+ #define APPLEIB_BASIC_CONFIG	1
+ 
++/*
++ * T1 hard-lock diagnosis (2026-06-19): loading this driver hard-locks MacBookPro14,3.
++ * Prime suspect is the unconditional ASOC.SOCW(1) iBridge power-on AML in
++ * appleib_alloc_device(), which runs in the platform probe at module load with no
++ * kernel-side timeout. This param lets us skip just the AML execution (the handle is
++ * still fetched, so suspend/resume keep a valid asoc_socw) to confirm/avoid the hang.
++ * Default false = upstream behaviour; load with skip_acpi_power=1 to skip.
++ */
++static bool skip_acpi_power;
++module_param(skip_acpi_power, bool, 0444);
++MODULE_PARM_DESC(skip_acpi_power,
++		"Skip ASOC.SOCW(1) iBridge power-on AML at probe (T1 hard-lock workaround)");
++
+ static struct hid_device_id appleib_sub_hid_ids[] = {
+ 	{ HID_USB_DEVICE(USB_VENDOR_ID_LINUX_FOUNDATION,
+ 			 USB_DEVICE_ID_IBRIDGE_TB) },
+@@ -177,7 +190,7 @@ static int appleib_forward_int_op(struct hid_device *hdev,
+ 
+ 	for (i = 0; i < ARRAY_SIZE(hdev_info->sub_hdevs); i++) {
+ 		sub_hdev = hdev_info->sub_hdevs[i];
+-		if (sub_hdev->driver) {
++		if (sub_hdev && sub_hdev->driver) {
+ 			rc = forward(sub_hdev->driver, sub_hdev, args);
+ 			if (rc)
+ 				return rc;
+@@ -288,8 +301,15 @@ static int appleib_ll_power(struct hid_device *hdev, int level)
+ 
+ static int appleib_ll_parse(struct hid_device *hdev)
+ {
+-	/* we've already called hid_parse_report() */
+-	return 0;
++	struct appleib_hid_dev_info *hdev_info = hdev->driver_data;
++
++	/*
++	 * Populate the virtual sub-device's report descriptor from the parent
++	 * iBridge device. hid_parse_report() sets hdev->dev_rdesc/dev_rsize,
++	 * which hid_add_device() requires (else it fails with -ENODEV on 7.0).
++	 */
++	return hid_parse_report(hdev, hdev_info->hdev->rdesc,
++				hdev_info->hdev->rsize);
+ }
+ 
+ static void appleib_ll_request(struct hid_device *hdev,
+@@ -380,6 +400,9 @@ appleib_add_sub_dev(struct appleib_hid_dev_info *hdev_info,
+ 
+ 	rc = hid_add_device(sub_hdev);
+ 	if (rc) {
++		hid_err(hdev_info->hdev,
++			"failed to add sub-device %04x:%04x: %d\n",
++			sub_hdev->vendor, sub_hdev->product, rc);
+ 		hid_destroy_device(sub_hdev);
+ 		return ERR_PTR(rc);
+ 	}
+@@ -391,7 +414,9 @@ static struct appleib_hid_dev_info *appleib_add_device(struct hid_device *hdev)
+ {
+ 	struct appleib_hid_dev_info *hdev_info;
+ 	struct hid_device_id *dev_id;
++	struct hid_device *sub_hdev;
+ 	unsigned int usage;
++	int slot;
+ 	int i;
+ 
+ 	hdev_info = devm_kzalloc(&hdev->dev, sizeof(*hdev_info), GFP_KERNEL);
+@@ -407,15 +432,27 @@ static struct appleib_hid_dev_info *appleib_add_device(struct hid_device *hdev)
+ 		if (!dev_id) {
+ 			hid_warn(hdev, "Unknown collection encountered with usage %x\n",
+ 				 usage);
+-		} else {
+-			hdev_info->sub_hdevs[i] = appleib_add_sub_dev(hdev_info, dev_id);
++			continue;
++		}
++
++		/* index by sub-device slot (0..1), not the collection index */
++		slot = dev_id - appleib_sub_hid_ids;
++
++		/* only create each sub-device once */
++		if (hdev_info->sub_hdevs[slot])
++			continue;
+ 
+-			if (IS_ERR(hdev_info->sub_hdevs[i])) {
+-				while (i-- > 0)
++		sub_hdev = appleib_add_sub_dev(hdev_info, dev_id);
++		if (IS_ERR(sub_hdev)) {
++			/* clean up only the slots we actually populated */
++			for (i = 0; i < ARRAY_SIZE(hdev_info->sub_hdevs); i++) {
++				if (hdev_info->sub_hdevs[i])
+ 					hid_destroy_device(hdev_info->sub_hdevs[i]);
+-				return (void *)hdev_info->sub_hdevs[i];
+ 			}
++			return ERR_CAST(sub_hdev);
+ 		}
++
++		hdev_info->sub_hdevs[slot] = sub_hdev;
+ 	}
+ 
+ 	return hdev_info;
+@@ -529,11 +566,16 @@ static struct appleib_device *appleib_alloc_device(struct platform_device *pdev)
+ 		return ERR_PTR(-ENXIO);
+ 	}
+ 
+-	/* ensure iBridge is powered on */
+-	sts = acpi_execute_simple_method(ib_dev->asoc_socw, NULL, 1);
+-	if (ACPI_FAILURE(sts))
+-		dev_warn(&pdev->dev, "SOCW(1) failed: %s\n",
+-			 acpi_format_exception(sts));
++	/* ensure iBridge is powered on (skippable: prime T1 hard-lock suspect) */
++	if (!skip_acpi_power) {
++		sts = acpi_execute_simple_method(ib_dev->asoc_socw, NULL, 1);
++		if (ACPI_FAILURE(sts))
++			dev_warn(&pdev->dev, "SOCW(1) failed: %s\n",
++				 acpi_format_exception(sts));
++	} else {
++		dev_warn(&pdev->dev,
++			 "skip_acpi_power=1: NOT running ASOC.SOCW(1) power-on\n");
++	}
+ 
+ 	return ib_dev;
+ }
+diff --git a/apple-touchbar.c b/apple-touchbar.c
+index ff6a849..1f8307f 100644
+--- a/apple-touchbar.c
++++ b/apple-touchbar.c
+@@ -287,6 +287,15 @@ static int appletb_set_tb_disp(struct appletb_device *tb_dev,
+ 	struct hid_report *report;
+ 	int rc;
+ 
++	/*
++	 * T1 has no separate display-control interface; the bar is driven
++	 * entirely by the mode-set (appletb_set_tb_mode), so display ops are
++	 * a no-op success here. This keeps the worker/idle paths from hitting
++	 * the NULL disp_field/disp_iface for T1.
++	 */
++	if (tb_dev->is_t1)
++		return 0;
++
+ 	if (!tb_dev->disp_iface.hdev)
+ 		return -ENOTCONN;
+ 
+@@ -1071,7 +1080,8 @@ static bool appletb_test_and_mark_active(struct appletb_device *tb_dev)
+ 
+ 	spin_lock_irqsave(&tb_dev->tb_lock, flags);
+ 
+-	if (tb_dev->mode_iface.hdev && tb_dev->disp_iface.hdev &&
++	if (tb_dev->mode_iface.hdev &&
++	    (tb_dev->is_t1 || tb_dev->disp_iface.hdev) &&
+ 	    !tb_dev->active) {
+ 		tb_dev->active = true;
+ 		activated = true;
+@@ -1090,7 +1100,8 @@ static bool appletb_test_and_mark_inactive(struct appletb_device *tb_dev,
+ 
+ 	spin_lock_irqsave(&tb_dev->tb_lock, flags);
+ 
+-	if (tb_dev->mode_iface.hdev && tb_dev->disp_iface.hdev &&
++	if (tb_dev->mode_iface.hdev &&
++	    (tb_dev->is_t1 || tb_dev->disp_iface.hdev) &&
+ 	    tb_dev->active &&
+ 	    (hdev == tb_dev->mode_iface.hdev ||
+ 	     hdev == tb_dev->disp_iface.hdev)) {

@@ -41,7 +41,7 @@ Path 1 must always work without path 2.
 | Area | Owner | Repo / paths |
 |------|-------|--------------|
 | Hardware driver: `Device`, `blit`/`blit_rect`, `protocol`, `geometry`, `touch`/`TouchReader`, `server`/`client` | **Driver** | `t1-touchbar/src/t1touchbar/` |
-| The standalone control strip | **Driver** | `t1-touchbar/src/t1touchbar_strip/` |
+| **Basic engine** — the firmware kernel driver (`apple-ib-drv`) | **Driver** | `apple-ib-drv/` (vendored, GPL-2.0) |
 | Camera bridge | **Driver** | `t1-touchbar/src/t1touchbar/camera.py` |
 | Packaging, the installer (`install.sh`), pyproject, README, systemd units | **Driver** | `t1-touchbar/` (+ `t1bar-studio/packaging` for the studio service) |
 | The customization app: editor/GUI, **scenes engine**, **layered/material compositor**, the new config schema, the studio runtime | **Studio** | `t1bar-studio/src/t1bar_studio/` |
@@ -63,13 +63,18 @@ Path 1 must always work without path 2.
 
 ## Two independent bar-drivers (important — avoid conflating them)
 
-The device is **single-owner** (USB config 2, IF3, root). At any moment exactly one process
-drives the bar. There are two such processes, owned by different sessions, and they are
-**mutually exclusive**:
+The device is **single-owner**, and the two ways to drive it use **different USB configs**, so they
+are **mutually exclusive** (switching is a reboot):
 
-- **`t1touchbar-strip`** (driver-owned) — the standalone control strip. Hardcoded reference
-  layout; does NOT read the studio config. This is path 1.
-- **t1bar-studio's runtime** (studio-owned) — renders the user's scenes config. This is path 2.
+- **Basic** — the **`apple-ib-drv` kernel driver** (driver-owned, `apple-ib-drv/`). The T1 firmware
+  draws the strip in **config 1**. Set-and-forget; the webcam works natively. *The just-works default.*
+- **Full** — **t1bar-studio's runtime** (studio-owned) draws custom pixels in **config 2**, with the
+  camera bridge for the webcam. The opt-in customization path.
+
+> **Re-architecture (2026-06-30, see Decisions log):** Basic used to be a userspace `t1touchbar-strip`
+> that re-created the strip in *config 2* — which dragged config-2 baggage (blank-on-exit, camera
+> bridge) into what should be the simple path. **`t1touchbar-strip` is removed**; Basic is now the
+> firmware kernel driver (config 1), and config-2/camera-bridge belong only to Full.
 
 The installer wires up whichever the user chose (the service-swap pattern handles handing the
 device between them). Neither session should assume the other's process is running.
@@ -234,6 +239,20 @@ you're ready, don't implement your own protocol-write.
   monorepo (by-directory ownership: `studio/**` = studio). The two copies were byte-identical at
   cutover (only this doc had drifted by one commit), so the move was functionally zero-risk. Driver:
   nothing for you to re-point — the dev machine is already switched.
+
+- **2026-06-30 (driver):** **★ RE-ARCHITECTURE (user-corrected): Basic = firmware, not a userspace
+  strip.** The "just make it work" path is now the **`apple-ib-drv` kernel driver** — the T1 firmware
+  draws the strip in **config 1**; set-and-forget; the webcam works natively — NOT the old userspace
+  `t1touchbar-strip`, which re-created the strip in **config 2** and wrongly dragged config-2 baggage
+  (blank-on-exit, the camera bridge) into what should be the simple path. Changes: **vendored** the
+  kernel driver into `apple-ib-drv/` (patched t2linux/apple-ib-drv, **GPL-2.0**, the `skip_acpi_power`
+  fix + 4 others, `dkms.conf` + persistence files); **`t1touchbar-strip` REMOVED** (src, console
+  script, unit, old packaging scripts); **`install.sh` rewritten** — Basic = DKMS firmware driver;
+  Full = studio (config-2 custom pixels) + camera bridge, with the firmware driver installed-but-
+  **dormant** as the revert base; **`uninstall.sh` added** (Full→Basic, or →stock); README reworked
+  to the true two-engine story. **Basic↔Full is a reboot** (different USB configs). **Studio impact:
+  none to your code** — but the model "strip↔studio" is now "firmware↔studio", and the camera bridge +
+  config-2 caveats belong **only to Full**. Not pushed yet (user is relaying this to you).
 
 ## Open cross-session questions (each session: append here; the other answers in the log)
 
