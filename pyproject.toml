@@ -23,8 +23,15 @@ classifiers = [
 dependencies = [
     "pyusb>=1.2",
     "Pillow>=9.0",
-    "evdev>=1.6",
 ]
+
+[project.optional-dependencies]
+# Touch input (tapping the bar's buttons) reads the digitizer via python-evdev, a
+# from-source C-extension (needs build-essential + python3-dev; no PyPI wheels). It's
+# optional so `pip install t1-touchbar` lands display-capable and never hard-fails on a
+# toolchain-less box; `pip install t1-touchbar[touch]` adds tappable input. evdev is
+# lazy-imported at runtime, so the display/strip render path works without it.
+touch = ["evdev>=1.6"]
 
 [project.urls]
 Homepage = "https://github.com/AJ-dev-i60/t1-touchbar"
