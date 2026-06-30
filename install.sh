@@ -88,6 +88,9 @@ say "Installing: ${MODE^^}"
 # udev. Does NOT enable auto-load — Basic enables it, Full leaves it dormant.
 install_kernel_driver() {
   say "Building the firmware Touch Bar driver (apple-ib-drv) via DKMS…"
+  # SAFETY FIRST: write skip_acpi_power=1 BEFORE the module can ever exist or auto-load.
+  # A load without it runs ASOC.SOCW(1) and HARD-FREEZES the machine.
+  run install -m644 "$REPO/apple-ib-drv/packaging/apple-touchbar.modprobe.conf" /etc/modprobe.d/apple-touchbar.conf
   run apt-get update
   run apt-get install -y build-essential dkms "linux-headers-$(uname -r)" \
     || run apt-get install -y build-essential dkms linux-headers-generic
@@ -101,8 +104,7 @@ install_kernel_driver() {
     run dkms build -m "$DKMS_NAME" -v "$DKMS_VER"
     run dkms install -m "$DKMS_NAME" -v "$DKMS_VER"
   fi
-  # the critical param (NEVER load without it) + force config 1 + no autosuspend
-  run install -m644 "$REPO/apple-ib-drv/packaging/apple-touchbar.modprobe.conf" /etc/modprobe.d/apple-touchbar.conf
+  # force config 1 + no autosuspend (the skip_acpi_power param was written first, above)
   run install -m644 "$REPO/apple-ib-drv/packaging/99-ibridge.rules" /etc/udev/rules.d/99-ibridge.rules
   run udevadm control --reload
   run udevadm trigger
