@@ -32,6 +32,10 @@ def main(argv=None):
     cv.add_argument("-c", "--config", required=True, help="legacy config (in)")
     cv.add_argument("-o", "--out", required=True, help="scenes config (out)")
 
+    rn = sub.add_parser("scene-run",
+                        help="drive the Touch Bar from a Scenes config (new runtime, hot-reload)")
+    rn.add_argument("-c", "--config", required=True)
+
     sr = sub.add_parser("scene-render",
                         help="render a Scenes config to a PNG (new compositor, no hardware)")
     sr.add_argument("-c", "--config", required=True, help="a Scenes config")
@@ -70,6 +74,13 @@ def main(argv=None):
                  "media": media}
         render.render(cfg, layout, state).save(args.out)
         print(f"wrote {args.out} ({layout})")
+        return 0
+
+    if args.cmd == "scene-run":
+        if os.geteuid() != 0:
+            ap.error("scene-run must be root (USB + uinput)")
+        from .scene_runtime import SceneRuntime
+        SceneRuntime(args.config).run()
         return 0
 
     if args.cmd == "convert":

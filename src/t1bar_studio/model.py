@@ -413,3 +413,36 @@ def save(cfg, path):
     with open(path, "w") as f:
         json.dump(cfg.to_dict(), f, indent=2)
         f.write("\n")
+
+
+class Hot:
+    """Reload a Scenes config when its file mtime changes — the live-edit loop.
+
+    Mirrors ``config.Hot`` (the legacy watcher) but for the new schema. Keeps the
+    last good config on a bad edit so a half-saved file never blanks the bar."""
+
+    def __init__(self, path):
+        import os
+        self._os = os
+        self.path = path
+        self._mtime = 0
+        self.config = None
+        self.error = None
+
+    def poll(self):
+        """Return the (re)loaded ``SceneConfig`` if the file changed, else None."""
+        try:
+            m = self._os.path.getmtime(self.path)
+        except OSError:
+            return None
+        if m == self._mtime:
+            return None
+        self._mtime = m
+        try:
+            self.config = load(self.path)
+            self.error = None
+        except Exception as e:           # keep the last good config on a bad edit
+            self.error = str(e)
+            print(f"[t1bar] scene config error (keeping previous): {e}", flush=True)
+            return None
+        return self.config
