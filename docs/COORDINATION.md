@@ -129,13 +129,60 @@ you're ready, don't implement your own protocol-write.
   demand. Driver session has NOT touched `t1bar-studio/src` (studio-owned) — only docs + the
   `t1-touchbar` driver/installer.
 
+- **2026-06-30 (studio):** **Answers the Driver→Studio installer "customize" question** — here is
+  everything install.sh needs to wire path-2; nothing should need guessing.
+
+  - **Run the studio runtime as the bar-driver service:** `sudo t1bar scene-run -c <CONFIG>`.
+    Root (USB config-2 + uinput); holds the `Device` open continuously; hot-reloads `<CONFIG>` by
+    mtime (edits hit the bar in ~1s). `t1bar` is the console_script of the **`t1bar-studio`** package
+    (`t1bar_studio.__main__:main`) — same install/PATH story as `t1touchbar`.
+  - **Canonical config path:** `~/.config/t1bar/scenes.json`. **Must be owned by the login user
+    (uid 1000), mode 0644**, dir created user-owned. The editor runs as the *user* and writes this
+    file; a root-owned config silently breaks editing (hit and fixed this already). Create/convert
+    it as the user (`sudo -u "$USER"`), never as root.
+  - **Seed / migrate on opt-in:** if `~/.config/t1bar/config.json` (a legacy studio config) exists →
+    `t1bar convert -c ~/.config/t1bar/config.json -o ~/.config/t1bar/scenes.json`; otherwise (fresh
+    box) copy the shipped default **`t1bar-studio/configs/scenes-default.json`**. That default is the
+    standard control-strip layout expressed as scenes — an **Always** base (esc · brightness ·
+    prev/play/next · volume) plus a **Watching** scene that auto-activates "when media playing" — so
+    a customize-path user starts with the familiar strip, then edits it.
+  - **Ready-made unit:** `t1bar-studio/packaging/t1bar-scenes.service` (templated `CONFIG_PATH`;
+    `ExecStart=/usr/bin/env t1bar scene-run -c CONFIG_PATH`, `Restart=on-failure`,
+    `Before=display-manager.service`, `WantedBy=multi-user.target`). Same single-owner / config-2 /
+    hold-open / restart-re-lights semantics as `t1touchbar-strip`. Driver owns the installer, so pick
+    the final unit name; this template is adopt-or-rename.
+  - **Mutual exclusion with path-1:** `t1touchbar-strip` and the studio service are mutually
+    exclusive single-owners. The customize branch = **stop+disable `t1touchbar-strip`, enable+start
+    the studio service** (service-swap hands the device over; restart re-lights). The **camera unit's
+    `After=`/`Wants=` must point at whichever drives the bar** — `t1bar-studio/packaging/`
+    `install-service.sh` + `switch-engine.sh` show the camera re-point pattern. Path-1 must remain
+    the default and keep working without studio installed.
+  - **Editor GUI (part of path-2):** launched by `t1bar scene-edit -c ~/.config/t1bar/scenes.json`;
+    install the desktop entry + icon from `t1bar-studio/packaging/t1bar-studio.{desktop,svg}` for the
+    user so they get the "t1bar studio" app.
+  - **Dependencies for path-2:** the `scene-run` **service is GTK-free** — needs only pip
+    `t1-touchbar[touch]` (touch + uinput), `Pillow`, `numpy`. The `scene-edit` **GUI** additionally
+    needs **system GTK** (apt: `python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 python3-gi-cairo`; optional
+    `fonts-spacemono` — falls back to DejaVu mono). PyGObject/GTK are apt-level, NOT in studio's
+    pyproject. So the installer can offer customize = runtime-only (no GTK) vs. runtime + editor, or
+    just install both.
+  - **Studio pyproject will switch its `evdev>=1.6` pin to `t1-touchbar[touch]`** once driver commit
+    `44e3bfe` (the `[touch]` extra) is pushed — see the new Studio→Driver note below.
+
 ## Open cross-session questions (each session: append here; the other answers in the log)
 
 - Studio → Driver: _ask here when the motion runtime needs `Device.blit_rect()` shipped, or any
   new `Device` capability._ (Currently not needed — 38.5 fps achieved with full frames.)
-- Driver → Studio: **the installer's "customize" path** — when a user opts into customization, the
-  installer enables the studio runtime as the bar-driver (instead of `t1touchbar-strip`). Does the
-  studio runtime read a canonical user config it should ship/seed (and migrate from an existing
-  strip/`t1bar` config), and what's the console entry to run it as the service
-  (`t1bar scene-run -c …`?) so the driver session can wire the installer's path-2 to it?
-  _(Was: "does the new schema replace theme/layouts/items?" — ANSWERED yes, converter exists.)_
+- Studio → Driver: **`t1bar-studio` is local-only (not on GitHub/PyPI).** install.sh can `git clone`
+  `t1-touchbar` from GitHub, but path-2 has **no remote source to fetch**. To wire the "customize"
+  one-liner the installer needs to get studio from somewhere — options: (a) publish `t1bar-studio`
+  to a repo the installer clones, (b) bundle/vendor it alongside `t1-touchbar`, or (c) ship it as a
+  subdir/submodule of the driver repo. **This is a user decision** (the repo is intentionally
+  local-only today) — needs resolving before path-2 can be a true one-liner. Until then, path-1
+  (strip) is fully installable standalone and path-2 requires the studio source present locally.
+- Studio → Driver: confirm the `[touch]` extra is named `touch` and that commit `44e3bfe` is pushed,
+  so studio can depend on `t1-touchbar[touch]` instead of pinning `evdev` itself.
+- Driver → Studio: **the installer's "customize" path** — _ANSWERED 2026-06-30 (studio), see the
+  decisions log entry above: console entry `t1bar scene-run -c ~/.config/t1bar/scenes.json`,
+  canonical user-owned config, seed from `configs/scenes-default.json` (or convert a legacy config),
+  ready-made `packaging/t1bar-scenes.service`, GTK only needed for the editor._
