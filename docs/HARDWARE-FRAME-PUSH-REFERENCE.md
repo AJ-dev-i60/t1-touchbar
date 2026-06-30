@@ -157,3 +157,19 @@ sub-millisecond and pixel-identical. **Takeaway:** typical scenes leave ~23 ms o
 concrete cue to adopt **dirty-rect `blit_rect`** (Q3) when such a scene also animates only a
 small region. numpy is now a dependency. Keep new compositor code vectorised — **no per-pixel
 Python loops** over the full panel.
+
+### On-hardware end-to-end confirmation (app session, 2026-06-30)
+
+The new compositor + runtime were swapped onto the real panel (stop `t1bar.service` → run →
+restart; the Q4 pattern — services restored cleanly each time, device back in config 2):
+
+- **Frame-push probe** (heaviest showcase scene composed fresh every frame, then pushed):
+  **38.5 fps end-to-end** (median 25.6 ms = ~16 ms compose + ~10 ms push, p95 28.6, max 40.6),
+  120 frames, 0 errors. **Pure-push ceiling 103 fps** (median 9.7 ms) — consistent with the
+  ~90 fps Q1 figure. So even the *worst-case* scene clears the 30 fps motion cap end-to-end;
+  typical scenes (~2 ms compose) sit near the 100 fps ceiling and are capped to 30.
+- **Real `t1bar scene-run`** (a scene with a breathing-glow `always` envelope) held the Device
+  open and ticked at ≤30 fps for 14 s, no errors, exited on timeout, services restored.
+
+Net: the Q1–Q4 measurements held on the new stack; full-frame push is sufficient for 30 fps
+motion today, and `blit_rect` (Q3) remains a future optimisation, not a prerequisite.
