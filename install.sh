@@ -35,8 +35,11 @@ if [ ! -f "${_self_dir}/apple-ib-drv/dkms.conf" ]; then
     | tar -xz -C "$_tmp" --strip-components=1
   # re-exec the real installer from the extracted repo, as root, with the terminal
   # reattached so the prompts work even though stdin came from the curl pipe.
-  if [ -e /dev/tty ]; then exec sudo bash "$_tmp/install.sh" "$@" </dev/tty
-  else                     exec sudo bash "$_tmp/install.sh" "$@"; fi
+  if { true </dev/tty; } 2>/dev/null; then
+    exec sudo bash "$_tmp/install.sh" "$@" </dev/tty   # reattach the terminal so prompts work
+  else
+    exec sudo bash "$_tmp/install.sh" "$@"             # no tty (CI/pipe) — pass --basic/--full/--yes
+  fi
 fi
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
