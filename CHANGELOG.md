@@ -29,6 +29,12 @@ Hardening from the first clean-machine validation (MacBookPro14,3 / Ubuntu 26.04
   the same call that freezes at probe. All three sites (probe, suspend, resume) now honour the skip.
 
 ### Changed
+- Installer now explains the alarming-but-harmless `tainting kernel … signature missing` line where
+  it appears (or, if Secure Boot is on, points at the one-time `mokutil` MOK enrolment instead).
+- Installer exports `DEBIAN_FRONTEND=noninteractive` so apt doesn't warn (`dpkg-preconfigure:
+  unable to re-open stdin`) or block when stdin is the curl/`--yes` pipe.
+- README documents why the installer doesn't force a live unbind/rebind (it would poke the bind/power
+  paths that can wedge the T1, for no benefit over a reboot).
 - Installer + README now state the **reboot is required to finish** Basic (the live load can't
   claim interfaces the generic HID drivers already hold), rather than implying it's optional.
 - `apple-ib-drv/t1-kernel7-fixes.patch` → `…applied.patch`, clarified as a reference diff for the

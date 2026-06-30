@@ -113,6 +113,9 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 USER_NAME="${SUDO_USER:-root}"
 USER_HOME="$(getent passwd "$USER_NAME" | cut -d: -f6)"
+# stdin often comes from the curl|bash pipe or --yes wrapper; keep apt non-interactive so it
+# doesn't warn ("dpkg-preconfigure: unable to re-open stdin") or block on a prompt.
+export DEBIAN_FRONTEND=noninteractive
 
 # ── preflight ───────────────────────────────────────────────────────────────
 command -v apt-get >/dev/null || { echo "This installer targets apt-based distros (Ubuntu/Debian)." >&2; exit 1; }
@@ -160,6 +163,15 @@ install_kernel_driver() {
     run dkms add -m "$DKMS_NAME" -v "$DKMS_VER" || true
     run dkms build -m "$DKMS_NAME" -v "$DKMS_VER"
     run dkms install -m "$DKMS_NAME" -v "$DKMS_VER"
+  fi
+  # Reassure about the scary-but-harmless taint line the build/load emits. If Secure Boot is
+  # ON the self-signed module won't load until its MOK is enrolled — point at that instead.
+  if mokutil --sb-state 2>/dev/null | grep -qi enabled; then
+    say "Secure Boot is ON — enrol the module-signing key once, or the kernel will refuse the module:"
+    echo "      sudo mokutil --import /var/lib/dkms/mok.pub   # set a password, reboot, confirm in the blue MOK screen"
+  else
+    say "FYI: a \"module verification failed … tainting kernel\" line is EXPECTED and harmless here"
+    echo "      (Secure Boot is off, so the self-signed module loads but isn't key-verified). Not an error."
   fi
   # force config 1 + no autosuspend (the skip_acpi_power param was written first, above)
   run install -m644 "$REPO/apple-ib-drv/packaging/99-ibridge.rules" /etc/udev/rules.d/99-ibridge.rules

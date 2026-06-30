@@ -184,6 +184,9 @@ The installer prints a self-check at the end that looks for these for you.
 
 **The bar is dark right after install (before a reboot).** Expected — see the Basic note above.
 **Reboot once.** The live `modprobe` can't claim interfaces the generic HID drivers already hold.
+The installer *deliberately* doesn't force-unbind them and rebind live: doing so would exercise the
+device's bind/power paths (the same family as the resume `SOCW` call) outside a clean boot, for no
+real benefit — a reboot is simpler and avoids poking the one area that can wedge the hardware.
 
 **Still dark after a reboot → `usbmuxd`.** `usbmuxd` (iOS-device tethering) ships a udev rule that
 also matches the iBridge `05ac:8600`; if it grabs the device first, the HID driver can't initialise
