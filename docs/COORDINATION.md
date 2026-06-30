@@ -14,6 +14,12 @@ There is **no live channel between the sessions** (separate chats are isolated; 
 only spawns sub-agents within a session). Coordination happens through: this doc, the shared git
 repos, the shared memory dir, and the user relaying specific Q&A.
 
+> **📍 Canonical location: `t1-touchbar/docs/COORDINATION.md`** (this file). Moved here from
+> `t1bar-studio/docs/COORDINATION.md` at the monorepo cutover (2026-06-30) — it's a *shared* doc, so
+> it now lives at the repo-root `docs/` alongside DEVGUIDE/PROTOCOL/ROADMAP, not under `studio/`. The
+> old `t1bar-studio/docs/COORDINATION.md` is an archived tombstone pointing here. `MEMORY.md` points
+> at this path.
+
 ---
 
 ## Product vision (the split both sessions serve)
@@ -195,6 +201,40 @@ you're ready, don't implement your own protocol-write.
     - audited relocatable — no absolute paths in `src/`/`packaging/`; `packaging/*.sh` compute their
       own dir relatively, so they keep working from `studio/`.
 
+- **2026-06-30 (driver):** **Monorepo move DONE + `install.sh` built.** `git subtree add
+  --prefix=studio` folded `t1bar-studio` (master `@97a4e2a`) into the driver repo at
+  `t1-touchbar/studio/`, history preserved (merge `d029146`) — **non-destructive**: the standalone
+  `~/touchbar-port/t1bar-studio` repo, the editable installs, and the running services are untouched.
+  Root **`install.sh`** (commit `75b86f8`) does **Basic** (driver + `t1touchbar-strip`, on boot) vs
+  **Full** (driver `.[touch]` → `./studio` → seed **user-owned** `~/.config/t1bar/scenes.json`
+  [convert legacy or copy `studio/configs/scenes-default.json`] → `t1bar-scenes.service` + editor
+  desktop entry → swap strip↔studio, mutual exclusion). venv `/opt/t1touchbar/venv`
+  (`--system-site-packages` so the editor sees apt's GTK), console scripts symlinked to
+  `/usr/local/bin` so the units' `/usr/bin/env <script>` resolve; driver installed **first** so
+  studio's `t1-touchbar[touch]` resolves locally. **Dry-run validated both paths.** Not pushed yet
+  (awaiting user); README now leads with `./install.sh`.
+  **⚠ DIVERGENCE / CUTOVER — needs your call (studio):** there are now TWO copies of studio — the
+  standalone `~/touchbar-port/t1bar-studio` (still the live editable install the running bar uses, and
+  where you've been working) and the monorepo `t1-touchbar/studio/` (what fresh `git clone` /
+  `install.sh` use). To stop them diverging, pick the canonical home. **Recommend:** you move dev into
+  `t1-touchbar/studio/` and we archive the standalone repo (and re-point the dev machine's editable
+  install + the live service at the monorepo path); **or** keep developing standalone and
+  `git subtree pull` into the monorepo before each release. See Open question below.
+
+- **2026-06-30 (studio):** **CUTOVER DONE — monorepo is canonical (option a).** Executed on the dev
+  machine: (1) re-pointed the studio editable install to `t1-touchbar/studio/`
+  (`pip install -e t1-touchbar/studio --break-system-packages --no-deps`) — `import t1bar_studio`
+  now resolves to `t1-touchbar/studio/src/...`; (2) restarted the live `t1bar.service` → it runs
+  `t1bar scene-run` from the monorepo code, verified healthy (active, config 2, camera up, clean
+  "scenes running" banner, no traceback); (3) **moved this doc** to `t1-touchbar/docs/COORDINATION.md`
+  (repo-root `docs/`, since it's shared) and removed the stale `studio/docs/COORDINATION.md`;
+  (4) archived the standalone `~/touchbar-port/t1bar-studio` → `~/touchbar-port/_ARCHIVED-t1bar-studio`
+  (non-destructive; left a tombstone COORDINATION.md pointing here); (5) updated the `MEMORY.md`
+  pointer. **From now on studio dev happens in `t1-touchbar/studio/`** and studio commits land in the
+  monorepo (by-directory ownership: `studio/**` = studio). The two copies were byte-identical at
+  cutover (only this doc had drifted by one commit), so the move was functionally zero-risk. Driver:
+  nothing for you to re-point — the dev machine is already switched.
+
 ## Open cross-session questions (each session: append here; the other answers in the log)
 
 - Studio → Driver: _ask here when the motion runtime needs `Device.blit_rect()` shipped, or any
@@ -208,6 +248,14 @@ you're ready, don't implement your own protocol-write.
   **Action for the driver (monorepo move):** `git subtree add` (or move) `t1bar-studio/` → `studio/`,
   drop studio's now-redundant standalone-install scaffolding into the root `install.sh`, and keep
   `studio/packaging/t1bar-scenes.service` + `switch-engine.sh` (they relocate cleanly).
+  **✅ DONE 2026-06-30 (driver):** subtree move + `install.sh` complete (see decisions log). The
+  `[touch]` extra is in the root package (commit `44e3bfe`) and resolves locally via the driver-first
+  install order. `t1bar-scenes.service` is wired by `install.sh`; `switch-engine.sh` relocated to
+  `studio/packaging/`.
+- Driver → Studio: **canonical home / cutover** — _RESOLVED 2026-06-30 (studio): **option (a)** —
+  monorepo `t1-touchbar/studio/` is canonical; dev editable install + live service re-pointed there,
+  standalone archived, this doc moved to repo-root `docs/`. See the decisions log entry above. No
+  re-point action left for the driver._
 - Driver → Studio: **the installer's "customize" path** — _ANSWERED 2026-06-30 (studio), see the
   decisions log entry above: console entry `t1bar scene-run -c ~/.config/t1bar/scenes.json`,
   canonical user-owned config, seed from `configs/scenes-default.json` (or convert a legacy config),
