@@ -47,32 +47,34 @@ the opinion lives on top. You opt into this; it's never needed for path 1.
 
 ## Install — "just make it work"
 
-> **Not on PyPI yet** — install from a clone. *(A one-step `./install.sh` that bootstraps these
-> prerequisites and offers the basic-vs-customize choice is on the way.)*
+> **Not on PyPI yet** — install from a clone. The one git clone contains everything (the driver
+> at the root, the studio app under `studio/`).
+
+The installer bootstraps the prerequisites and offers the **Basic** vs **Full** choice:
 
 ```bash
-# 1 · prerequisites (strip + tappable buttons + media)
-sudo apt update
-sudo apt install -y python3-pip python3-venv git \
-                    libusb-1.0-0 build-essential python3-dev playerctl
-#    add  ffmpeg v4l2loopback-dkms  only if you also want the webcam bridge
-
-# 2 · the driver, with touch
 git clone https://github.com/AJ-dev-i60/t1-touchbar
 cd t1-touchbar
-python3 -m venv .venv && . .venv/bin/activate
-pip install '.[touch]'            # omit [touch] for a display-only (non-tappable) install
-
-# 3 · light up the bar
-sudo .venv/bin/t1touchbar-strip   # welcome, then the control strip
+sudo ./install.sh           # asks: Basic (just the strip) or Full (+ studio app)
+#   sudo ./install.sh --basic   # non-interactive
+#   sudo ./install.sh --full    # ...also installs the customization studio
+#   --dry-run shows exactly what it would do, changing nothing
 ```
 
-**Start on every boot** (recommended — this is what "just works" means):
+**Basic** installs the driver + control strip and enables it on boot — your Touch Bar just works.
+**Full** adds the **t1bar studio** app for designing your own bar (see *Customize*). The installer
+detects the T1, installs the apt prerequisites, sets up a venv, and wires the systemd service.
+
+<details><summary>Prefer to do it by hand?</summary>
 
 ```bash
-sudo bash packaging/install-service.sh          # installs + enables the systemd service
-sudo systemctl disable --now t1touchbar-strip   # ...to hand the bar back later
+sudo apt install -y python3-pip python3-venv git libusb-1.0-0 build-essential python3-dev playerctl
+python3 -m venv .venv && . .venv/bin/activate
+pip install '.[touch]'            # omit [touch] for a display-only (non-tappable) install
+sudo .venv/bin/t1touchbar-strip   # welcome, then the control strip
+sudo bash packaging/install-service.sh   # ...and to start it on every boot
 ```
+</details>
 
 That's the whole basic experience. Everything below is for path 2 — building your own bar.
 
