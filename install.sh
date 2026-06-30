@@ -25,8 +25,11 @@ set -euo pipefail
 # ── self-bootstrap ──────────────────────────────────────────────────────────
 # Supports `curl -fsSL <raw>/install.sh | bash` with NO git and NO checkout: if we're
 # not already inside a repo checkout, fetch the repo tarball and re-exec from it.
-_self_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
-if [ ! -f "${_self_dir}/apple-ib-drv/dkms.conf" ]; then
+# We're in a checkout only if THIS script is a real file sitting next to the repo.
+# Under `curl | bash` it isn't a file at all → bootstrap (regardless of cwd).
+_src="${BASH_SOURCE[0]:-$0}"; _self_dir=""
+[ -f "$_src" ] && _self_dir="$(cd "$(dirname "$_src")" && pwd)"
+if [ -z "$_self_dir" ] || [ ! -f "${_self_dir}/apple-ib-drv/dkms.conf" ]; then
   command -v curl >/dev/null 2>&1 || { echo "t1-touchbar: need 'curl' to bootstrap." >&2; exit 1; }
   command -v tar  >/dev/null 2>&1 || { echo "t1-touchbar: need 'tar' to bootstrap." >&2; exit 1; }
   _tmp="$(mktemp -d)"
@@ -76,7 +79,7 @@ ask() {
 # ── root ────────────────────────────────────────────────────────────────────
 if [ "$(id -u)" -ne 0 ]; then
   say "This installer needs root (apt + DKMS + systemd). Re-running with sudo…"
-  exec sudo -E bash "$0" "$@"
+  exec sudo bash "$0" "$@"
 fi
 USER_NAME="${SUDO_USER:-root}"
 USER_HOME="$(getent passwd "$USER_NAME" | cut -d: -f6)"
