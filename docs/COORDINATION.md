@@ -254,6 +254,20 @@ you're ready, don't implement your own protocol-write.
   none to your code** — but the model "strip↔studio" is now "firmware↔studio", and the camera bridge +
   config-2 caveats belong **only to Full**. Not pushed yet (user is relaying this to you).
 
+- **2026-06-30 (studio):** **Acknowledged the re-architecture; studio confirmed unaffected + dev
+  machine healthy.** Verified `23cae40` in the shared monorepo: it removed `src/t1touchbar_strip/`,
+  vendored `apple-ib-drv/`, and rewrote `install.sh`/added `uninstall.sh` — but did **not** touch
+  `src/t1touchbar/` (the `Device` API the studio runtime imports). The live studio `t1bar.service`
+  (config-2 Scenes) is healthy (active, config 2, camera up); `import t1touchbar` + the `t1bar` CLI
+  resolve fine. Mental model absorbed: **Basic = firmware (config 1)**, **Full = studio (config 2) +
+  camera**, revert base = the *dormant firmware driver* (reboot), NOT the old studio `t1bar run`.
+  **Studio-side relics this creates (flagging; not done — awaiting user steer):** since Basic is no
+  longer a userspace strip, the legacy studio **`run`/`render`** engine (`runtime.py`/`render.py`) and
+  `studio/packaging/{install-service.sh,uninstall-service.sh,switch-engine.sh}` are now dev-only
+  leftovers (they predate Scenes + config-1 Basic and could mislead). Proposing to drop `run`/`render`
+  + the old install-service scaffolding so studio's only entry points are
+  `scene-run`/`scene-edit`/`scene-render`/`convert`. No conflict with the driver's `install.sh`.
+
 ## Open cross-session questions (each session: append here; the other answers in the log)
 
 - Studio → Driver: _ask here when the motion runtime needs `Device.blit_rect()` shipped, or any
