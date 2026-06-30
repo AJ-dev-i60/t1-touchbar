@@ -1,7 +1,12 @@
-"""t1bar — run or preview a config-driven Touch Bar control surface.
+"""t1bar — design and drive a contextual Touch Bar control surface.
 
-    sudo t1bar run -c configs/default.json     drive the bar (live hot-reload)
-    t1bar render -c configs/default.json -l media -o out.png   headless preview PNG
+  Scenes engine (current):
+    t1bar scene-edit -c ~/.config/t1bar/scenes.json     design it (native GTK app)
+    sudo t1bar scene-run -c ~/.config/t1bar/scenes.json drive the bar (hot-reload)
+    t1bar scene-render -c scenes.json -o out.png        headless preview PNG
+    t1bar convert -c config.json -o scenes.json          legacy config -> scenes
+  Legacy engine (fallback, kept for switch-engine.sh legacy):
+    sudo t1bar run -c config.json   ·   t1bar render -c config.json -o out.png
 """
 import argparse
 import os
@@ -23,11 +28,7 @@ def main(argv=None):
     p.add_argument("--height", type=int, default=60)
     p.add_argument("--playing", action="store_true", help="fake media-playing state")
 
-    e = sub.add_parser("edit", help="open the native GTK editor (live-edits the config)")
-    e.add_argument("-c", "--config", required=True)
-    e.add_argument("--shot", help=argparse.SUPPRESS)   # render UI to PNG and exit
-
-    # ── new Scenes engine (Phase 1, headless) ────────────────────────────────
+    # ── new Scenes engine ────────────────────────────────────────────────────
     cv = sub.add_parser("convert", help="convert a legacy config into a Scenes config")
     cv.add_argument("-c", "--config", required=True, help="legacy config (in)")
     cv.add_argument("-o", "--out", required=True, help="scenes config (out)")
@@ -52,13 +53,6 @@ def main(argv=None):
     sr.add_argument("-t", "--time", type=float, default=0.0, help="motion time (seconds)")
 
     args = ap.parse_args(argv)
-
-    if args.cmd == "edit":
-        if not os.path.exists(args.config):
-            ap.error(f"config not found: {args.config}")
-        from .editor_gtk import run
-        run(args.config, shot=getattr(args, "shot", None))
-        return 0
 
     if args.cmd == "run":
         if os.geteuid() != 0:

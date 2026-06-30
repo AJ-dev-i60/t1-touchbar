@@ -57,4 +57,4 @@ LAUNCHER="$USER_HOME/.local/share/applications/t1bar-studio.desktop"
 [ -f "$LAUNCHER" ] && sed -i "s#-c [^ ]*#-c $CFG#" "$LAUNCHER" || true
 
 echo "done.  t1bar=$(systemctl is-active t1bar.service)  camera=$(systemctl is-active t1touchbar-camera.service)  config=$(cfgval)"
-echo "Edit your bar:  t1bar edit -c $CFG   (or launch 't1bar studio' from the app grid)"
+echo "Edit your bar:  t1bar scene-edit -c $CFG   (or launch 't1bar studio' from the app grid)"

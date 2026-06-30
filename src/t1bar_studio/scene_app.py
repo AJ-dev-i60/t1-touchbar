@@ -1,8 +1,8 @@
 """Scene Home — the native GTK4/libadwaita front of the Scenes rebuild.
 
 This is the **spine** view (concept §1): browse / create / prioritise / select scenes
-and see which one is live *right now*. It is a fresh app, NOT the rejected
-``editor_gtk.py`` (which stays runnable until fully replaced). Chrome is neutral
+and see which one is live *right now*. It is the app's home and the replacement for the
+old single-window editor (now removed). Chrome is neutral
 graphite, native dark; **the only colour is on the strip** — every scene card carries
 a real **live mini-render** of that scene produced by the actual ``compose`` engine, so
 the previews are honest, not mocked.

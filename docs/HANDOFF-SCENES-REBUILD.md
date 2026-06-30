@@ -175,7 +175,7 @@ the editor live-edits. You are reimagining the **editor and the engine**, keepin
   literals):
   ```
   sudo -u armandt env DISPLAY=:0 WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/1000 \
-    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus t1bar edit -c ~/.config/t1bar/config.json
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus t1bar scene-edit -c ~/.config/t1bar/scenes.json
   ```
   Launched detached it keeps the stdout pipe open — redirect output or use `timeout` when scripting.
 - **Self-screenshot the GUI** (only reliable Wayland method; gnome-screenshot hangs, `import`
