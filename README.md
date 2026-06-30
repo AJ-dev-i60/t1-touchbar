@@ -12,6 +12,12 @@ strip. This project lights it up, two ways:
 - **Customize (optional)** — hand the whole bar to the **t1bar studio** app and design your own,
   with a fully programmable 2170×60 pixel surface and finger touch.
 
+> ⚠️ **One safety note up front.** On these 2016/2017 models, loading the kernel module *without*
+> the `skip_acpi_power=1` parameter runs an ACPI power-on call (`ASOC.SOCW(1)`) that **hard-freezes
+> the machine** — you have to hold the power button to recover. **The installer always sets this
+> parameter for you**, so the supported path is safe; it's only a hazard if you load the module by
+> hand. **Never run a bare `modprobe apple_ibridge`.** See [Troubleshooting](#troubleshooting).
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AJ-dev-i60/t1-touchbar/main/install.sh | bash
 ```
@@ -73,7 +79,10 @@ sudo ./install.sh            # interactive: Basic or Full
 ```
 
 - **Basic** → DKMS-builds the firmware driver, sets the critical `skip_acpi_power=1` parameter,
-  and loads it. Your bar lights up; reboot once if it doesn't immediately.
+  and loads it. **A reboot finishes the install — plan on it.** On an already-running system the
+  generic HID drivers (`hid-generic`/`hid-sensor-hub`) have *already* claimed the iBridge, so the
+  live load may bind nothing and the bar stays dark; after one reboot the udev rule forces config 1
+  early, the driver binds, and the strip comes up automatically on every boot.
 - **Full** → installs the studio engine + webcam bridge, stands the firmware driver down, and
   asks you to **reboot** to hand the bar to the studio. Then open **"t1bar studio"** to design it.
 
@@ -147,6 +156,54 @@ These apply to **Full** (host-driven, config 2) — **not** to Basic, which is p
   sensor and firmware key row are unavailable while the studio owns config 2.
 - **Nothing is persistent at the device level** — a reboot into Basic fully restores the firmware bar.
 
+## Tested on
+
+| Model | Kernel | Distro | Result |
+|---|---|---|---|
+| MacBookPro14,3 | 7.0.0-27-generic | Ubuntu 26.04 | ✅ Basic: DKMS builds, binds after reboot, webcam intact |
+
+Other 13,x/14,x models and kernels should work but are unverified — the kernel-7 fixes are what make
+this build on bleeding-edge kernels. Because DKMS rebuilds the module on every kernel upgrade and a
+broken rebuild fails **silently**, after any `apt upgrade` that bumps the kernel, check the bar still
+lights and run `dkms status` — it should list `apple-ib-drv/0.1, <new-kernel>: installed`.
+
+## Troubleshooting
+
+**The healthy signature.** After a successful boot in Basic, you should see all of these:
+
+```bash
+lsmod | grep apple_touchbar                      # apple_touchbar is loaded
+cat /sys/bus/usb/devices/*/idProduct | grep 8600 # the iBridge is on the bus
+dmesg | grep -i 'skip_acpi_power'                # "skip_acpi_power=1: NOT running ASOC.SOCW(1)…"
+dmesg | grep -i 'apple-touchbar.*input:'         # the virtual Touch Bar HID was created
+# and the iBridge's bConfigurationValue should read 1 (not blank)
+```
+
+The installer prints a self-check at the end that looks for these for you.
+
+**The bar is dark right after install (before a reboot).** Expected — see the Basic note above.
+**Reboot once.** The live `modprobe` can't claim interfaces the generic HID drivers already hold.
+
+**Still dark after a reboot → `usbmuxd`.** `usbmuxd` (iOS-device tethering) ships a udev rule that
+also matches the iBridge `05ac:8600`; if it grabs the device first, the HID driver can't initialise
+and the bar stays dark. It didn't bite on the tested machine, but if yours is dark after a reboot:
+
+```bash
+sudo sed -i '/05ac.*8600/d' /lib/udev/rules.d/39-usbmuxd.rules   # drop the iBridge matches
+#   ...or, if you don't tether iPhones/iPads at all:  sudo systemctl mask usbmuxd
+sudo udevadm control --reload && sudo reboot
+```
+
+**"module verification failed … tainting kernel".** Harmless — an out-of-tree DKMS module with
+Secure Boot **off**. If you run with **Secure Boot on**, DKMS self-signs with a MOK that you must
+enrol once (`sudo mokutil --import /var/lib/dkms/mok.pub`, set a password, reboot, confirm in the
+blue MOK screen) or the kernel will refuse to load the module.
+
+**Never hand-load without the parameter.** `modprobe apple_ibridge` *without* `skip_acpi_power=1`
+hard-freezes the machine. Confirm `/etc/modprobe.d/apple-touchbar.conf` exists before any manual
+load. Recovery if a boot ever misbehaves: at GRUB press `e` and add
+`modprobe.blacklist=apple_ibridge,apple_touchbar` to the kernel line.
+
 ## How it works
 
 **Basic** loads the `apple-ib-drv` kernel modules in config 1 and tells the T1 to render its
@@ -154,6 +211,21 @@ firmware function/control layouts (the bar draws itself; touches come back as ke
 **Full** switches the iBridge to its config-2 ("OS X") configuration, claims the Audio/Video
 interface, and speaks the **DFR** protocol (the same one mainline `appletbdrm` uses on T2 Macs),
 streaming host-rendered frames and reading the touch digitizer. The two never run at once.
+
+## Trust & authorship
+
+This is new code, and it asks for root to build a kernel module that can freeze your hardware — so
+healthy skepticism is correct. A few things to make an informed decision:
+
+- **Read before you run.** The Basic path only writes to `/etc/modprobe.d`, `/etc/udev/rules.d`,
+  `/etc/modules-load.d`, and DKMS under `/usr/src` — no network beyond `apt`, no piping remote
+  content to a shell. If you'd rather not pipe `curl` into `bash`, clone and read first
+  (`git clone … && less install.sh && sudo ./install.sh`). The one-liner just fetches this same
+  repo and runs the same script.
+- **The commit trailers.** Commits are authored by **AJ-dev-i60** and co-authored by **Claude**
+  (this project is built with Claude Code as a pair-programmer — that's what the `Claude` /
+  `Co-Authored-By` trailers are). Not a sign of tampering.
+- **Security policy / how to report:** [`SECURITY.md`](SECURITY.md).
 
 ## License
 

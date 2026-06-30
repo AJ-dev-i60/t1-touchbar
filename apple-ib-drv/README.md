@@ -20,8 +20,9 @@ forces config 1 exposes both the Touch Bar HID and the camera's UVC interfaces).
 **GPL-2.0** (see `LICENSE`) — *not* MIT like the rest of this repo. It is a fork of
 [**t2linux/apple-ib-drv**](https://github.com/t2linux/apple-ib-drv) (upstream `~4afd309`), which is
 GPL, with **five fixes** to make it build and bind on **Linux 7.x** for the **T1** (`05ac:8600`,
-MacBookPro13,x/14,x). The exact delta vs upstream is in `t1-kernel7-fixes.patch` (kept here for
-transparency); the source in this directory already has it applied.
+MacBookPro13,x/14,x). The exact delta vs upstream is recorded in `t1-kernel7-fixes.applied.patch`
+— a **reference diff, already baked into the `.c` sources here** (so the DKMS build needs no
+patching; don't re-apply it — a `patch --dry-run` will correctly report "previously applied").
 
 The five fixes (full write-up in the project's kernel-7 guide):
 1. **`skip_acpi_power` module param ⭐** — skip the `ASOC.SOCW(1)` ACPI power-on, which

@@ -76,6 +76,36 @@ ask() {
   read -rp "$1 $p " r; r="${r:-$d}"; [[ "$r" =~ ^[Yy] ]]
 }
 
+# usbmuxd ships a udev rule matching the iBridge (05ac:8600); if it claims the device
+# first, the HID driver can't bind and the bar stays dark. We don't auto-edit a system
+# file — just flag it so the user knows the fix if a reboot doesn't light the bar.
+warn_usbmuxd() {
+  local rule=/lib/udev/rules.d/39-usbmuxd.rules
+  if systemctl is-active --quiet usbmuxd 2>/dev/null && grep -qsi '05ac.*8600' "$rule"; then
+    say "⚠  usbmuxd is active and its udev rule matches the iBridge (05ac:8600)."
+    echo "   It didn't block binding on the tested machine, but if the bar stays dark AFTER a reboot,"
+    echo "   drop the iBridge matches and reboot:"
+    echo "       sudo sed -i '/05ac.*8600/d' $rule && sudo udevadm control --reload && sudo reboot"
+    echo "   (or, if you never tether iPhones/iPads:  sudo systemctl mask usbmuxd)"
+  fi
+}
+
+# Grep the healthy-boot signature so the user gets a clear pass/fail, not "it should work".
+# Most checks only pass after the reboot that binds the driver early enough — that's expected.
+selfcheck_basic() {
+  [ "$DRY" = 1 ] && return 0
+  say "Self-check…"
+  local bound=1
+  if lsmod | grep -q '^apple_touchbar'; then echo "   ✓ apple_touchbar loaded"
+  else echo "   • apple_touchbar not loaded yet (expected until you reboot)"; bound=0; fi
+  if dmesg 2>/dev/null | grep -qi 'skip_acpi_power=1'; then echo "   ✓ freeze-guard active (skip_acpi_power=1)"
+  else echo "   • freeze-guard message not in dmesg yet (will appear on the reboot load)"; fi
+  if dmesg 2>/dev/null | grep -qiE 'apple-touchbar.*input:'; then echo "   ✓ Touch Bar HID created"
+  else echo "   • Touch Bar HID not created yet — reboot to bind"; bound=0; fi
+  [ "$bound" = 1 ] && say "✅ Looks healthy — the bar should be lit." \
+                   || say "↻ Not bound yet — this is normal on first install. REBOOT to finish."
+}
+
 # ── root ────────────────────────────────────────────────────────────────────
 if [ "$(id -u)" -ne 0 ]; then
   say "This installer needs root (apt + DKMS + systemd). Re-running with sudo…"
@@ -150,9 +180,14 @@ if [ "$MODE" = basic ]; then
     run modprobe apple_ibridge skip_acpi_power=1 || say "  (couldn't load live — a reboot will load it)"
   fi
   echo
+  selfcheck_basic
+  warn_usbmuxd
+  echo
   say "✅ Done — installed BASIC (firmware strip)."
-  echo "   Your Touch Bar should now show the control strip; the webcam works as normal."
-  echo "   If the bar isn't lit yet, reboot — it auto-loads on every boot from here."
+  echo "   ⟳  REBOOT to finish. On an already-running system the generic HID drivers have already"
+  echo "      claimed the iBridge, so the live load may bind nothing — a reboot lets the driver grab"
+  echo "      it early. After that the strip comes up automatically on every boot; the webcam works"
+  echo "      as normal."
   echo "   To add customization later:  sudo ./install.sh --full"
 
 # ════════════════════════════════ FULL (State B) ════════════════════════════
