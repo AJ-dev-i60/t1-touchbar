@@ -15,6 +15,18 @@
 #
 set -euo pipefail
 
+# self-bootstrap: support `curl -fsSL <raw>/uninstall.sh | bash` with no git/checkout.
+_src="${BASH_SOURCE[0]:-$0}"; _self_dir=""
+[ -f "$_src" ] && _self_dir="$(cd "$(dirname "$_src")" && pwd)"
+if [ -z "$_self_dir" ] || [ ! -f "${_self_dir}/apple-ib-drv/dkms.conf" ]; then
+  command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1 \
+    || { echo "t1-touchbar: need curl + tar to bootstrap." >&2; exit 1; }
+  _tmp="$(mktemp -d)"; echo "==> fetching t1-touchbar (no git needed)…"
+  curl -fsSL "https://github.com/AJ-dev-i60/t1-touchbar/tarball/main" | tar -xz -C "$_tmp" --strip-components=1
+  if { true </dev/tty; } 2>/dev/null; then exec sudo bash "$_tmp/uninstall.sh" "$@" </dev/tty
+  else exec sudo bash "$_tmp/uninstall.sh" "$@"; fi
+fi
+
 REPO="$(cd "$(dirname "$0")" && pwd)"
 VENV=/opt/t1touchbar/venv
 BINDIR=/usr/local/bin
@@ -34,7 +46,7 @@ esac; done
 say() { printf '\033[1m==>\033[0m %s\n' "$*"; }
 run() { printf '   + %s\n' "$*"; [ "$DRY" = 1 ] || "$@"; }
 
-if [ "$(id -u)" -ne 0 ]; then exec sudo -E bash "$0" "$@"; fi
+if [ "$(id -u)" -ne 0 ]; then exec sudo bash "$0" "$@"; fi
 USER_NAME="${SUDO_USER:-root}"
 USER_HOME="$(getent passwd "$USER_NAME" | cut -d: -f6)"
 
