@@ -3,7 +3,10 @@
 All notable changes to this project are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.0] — 2026-07-01
+
+This repo is now the **standalone T1 firmware Touch Bar driver** — lean, focused, "just make it
+work". (Custom host-drawn pixels / the studio app live in the separate `t1-touchbar-studio` project.)
 
 ### Changed
 - **Repo split — this is now the standalone kernel firmware driver only.** The userspace DFR driver
