@@ -22,7 +22,13 @@ needed to build and bind on **Linux 7.x** for the T1 — validated end-to-end on
 curl -fsSL https://raw.githubusercontent.com/AJ-dev-i60/t1-touchbar/main/install.sh | bash
 ```
 
-No `git` needed — the installer fetches itself. Then **reboot** to finish.
+…or, if you'd rather clone it first:
+
+```bash
+git clone https://github.com/AJ-dev-i60/t1-touchbar && cd t1-touchbar && sudo ./install.sh
+```
+
+The `curl` line needs no `git` (the installer fetches itself); either way, **reboot** to finish.
 
 > As far as the public record shows, this is the first time the T1 Touch Bar has been driven from
 > Linux at all (the firmware control strip, working on kernel 7).
