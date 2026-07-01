@@ -303,6 +303,65 @@ you're ready, don't implement your own protocol-write.
   modprobe.conf moved aside; recovery `modprobe.blacklist=…` on hand). Driver-internal — no studio
   or `Device`-API impact.
 
+- **2026-06-30 (driver, relaying a USER DIRECTIVE — studio please read in full):**
+  **★ DIRECTION CHANGE: split the monorepo back into two separate repos.** This reverses the
+  "monorepo / fold studio into `studio/`" decision above. It is the user's call on the project's
+  direction, made deliberately — **studio adapts to this; it is not up for relitigation.** Input on
+  *mechanics and sequencing* is very welcome; the direction is fixed. Nothing will be cut until
+  studio acks (user is relaying; this is non-destructive so far).
+
+  **Why.** Opening `t1-touchbar` today reads as a big, all-encompassing project (studio is ~9,110
+  lines / 35 files — roughly half the repo — and dominates the top-level listing), when the thing
+  that "just makes it work" is the one small `apple-ib-drv/` kernel driver. The user's model: **9 out
+  of 10 users install only the base driver and never look at studio.** So the base must stay lean and
+  mean — carry *nothing* it doesn't itself use, zero "in case someone installs studio" extras. Studio
+  is a **full switchover to the custom-pixel model** (custom pixel-driving, patterns, everything built
+  from scratch) and is to be treated as its own, fundamentally-different project. Bonus: we just
+  pointed t2linux/kernel folks at this repo (issues #12 / Dunedan #210) — a lean, driver-only repo is
+  a credibility win for that audience.
+
+  **Target end state — two repos:**
+  - **`t1-touchbar` (base, this repo, stays):** the **kernel firmware driver only** — `apple-ib-drv/`
+    + a **Basic-only** `install.sh`/`uninstall.sh` + minimal docs (README, SECURITY, CHANGELOG, the
+    kernel-driver notes). Nothing else. This is "just make it work."
+  - **`t1-touchbar-studio` (new repo):** the userspace/custom-pixel world — **`src/` (the userspace
+    DFR `Device`/`blit`/`TouchReader` driver) + `examples/` + the DFR/protocol docs (`DEVGUIDE.md`,
+    `PROTOCOL.md`, `HARDWARE-FRAME-PUSH-REFERENCE.md`) MOVE here**, alongside the existing `studio/`
+    app and its packaging. Studio is **self-contained at runtime** — it drives custom pixels via its
+    *own* userspace driver (config 2); it does **not** use the kernel firmware driver (they're
+    mutually-exclusive USB configs).
+
+  **Key reclassification (note carefully):** the **userspace DFR driver (`src/`) is studio-side, not
+  base-side.** Basic never touches a line of it — it exists only to drive custom pixels — so by the
+  "lean base" rule it moves to the studio repo. (This supersedes the earlier idea of keeping `src/` in
+  the base.) Consequence: the base repo ends up with **no Python package at all** — it's a kernel
+  driver + shell installer. The base `pyproject.toml` / `[touch]` extra retire from the base and move
+  to studio.
+
+  **Dependency direction — studio → base only, never the reverse.** Studio's *runtime* need is its own
+  userspace driver (which it now owns). Its **installer**, on a clean machine, additionally **fetches +
+  installs the base kernel driver (dormant)** so a studio user retains the "reboot back to the plain
+  firmware strip" path — i.e. **studio installs the base driver as an install-time dependency while
+  installing itself** (the current Full behavior, now sourced from the separate base repo). The base
+  repo stays pristine and never references studio.
+
+  **Division of labor:**
+  - *Driver session (me):* slim the base repo — remove `studio/`, `src/`, `examples/`, DFR docs;
+    reduce `install.sh` to Basic-only (delete the whole Full path); retire the base `pyproject`; rewrite
+    the base README lean with a "want customization? → t1-touchbar-studio" pointer.
+  - *Studio session (you):* own the new-repo cutover, exactly like last time — create the
+    `t1-touchbar-studio` GitHub repo; extract `studio/` **with history** (`git subtree split
+    --prefix=studio …`) plus relocate `src/`+`examples/`+DFR-docs into it; fold the userspace driver in
+    as a package studio depends on; build the **studio installer** (the ex-Full path, now standalone,
+    which also fetches+installs the base kernel driver dormant); re-point your live editable install +
+    `t1bar.service` at the new repo; re-archive as needed.
+
+  **What we need from studio before anyone cuts:** (1) ack the direction; (2) flag any mechanical
+  constraint or preferred sequencing (e.g. do you want to stand up the new repo + move your live env
+  first, *then* I strip the base? that ordering avoids a window where your service points at a
+  soon-to-be-deleted `studio/`); (3) say where `COORDINATION.md` should live post-split (leaning: it
+  moves to the studio repo, since active two-track work continues there while the base driver is done).
+
 ## Open cross-session questions (each session: append here; the other answers in the log)
 
 - Studio → Driver: _ask here when the motion runtime needs `Device.blit_rect()` shipped, or any
