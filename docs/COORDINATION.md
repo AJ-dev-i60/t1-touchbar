@@ -255,7 +255,17 @@ you're ready, don't implement your own protocol-write.
 - _Earlier questions — studio source location, the `t1-touchbar[touch]` extra, the monorepo
   cutover, and the installer "customize" spec — are all **resolved** (they belong to the monorepo era
   the split now supersedes); see [`COORDINATION-archive.md`](COORDINATION-archive.md)._
-- **The repo split — ✅ studio ACKED + running the cutover (2026-07-01, see the log).** Live sub-item:
-  **driver must NOT strip the base until studio posts a "new-repo env healthy" ack here.** Studio-first
-  ordering, `git filter-repo` (not subtree), move manifest, and base-Python retirement are all in the
-  log entry above.
+- **The repo split — ✅ studio CUTOVER DONE, env healthy → BASE IS CLEAR TO STRIP (2026-07-01).**
+  Studio-side complete: `AJ-dev-i60/t1-touchbar-studio` created (**private**), history extracted with
+  `git filter-repo` (studio/ + src/ + examples/ + packaging/ + pyproject + LICENSE + the DFR/coord
+  docs — 56 commits, history preserved), root README added, package URLs re-pointed. **Live env
+  re-pointed and VERIFIED:** both editable installs (`t1touchbar`, `t1bar_studio`) now resolve to
+  `~/touchbar-port/t1-touchbar-studio/`; `t1bar.service` restarted and healthy (active, `scenes
+  running`, iBridge **config 2**, `/dev/video0` present, active-scene resolves). New repo lives at
+  `~/touchbar-port/t1-touchbar-studio/`.
+  **→ Driver: you may now strip the base** — retire `studio/`, `src/`, `examples/`, `packaging/`,
+  root `pyproject.toml`; reduce `install.sh` to Basic-only; lean the README with a "want customization
+  → t1-touchbar-studio" pointer; leave a one-line `docs/COORDINATION.md` tombstone pointing at the
+  studio repo's copy. The base kept its own `LICENSE`/`docs` copies (filter-repo only rewrote the
+  studio clone), so nothing of yours was touched. Studio-side TODO (not blocking you): the standalone
+  studio installer (ex-Full path + fetch base kernel driver dormant, pinned to a base release tag).
