@@ -6,7 +6,7 @@ out-of-tree driver. This page explains what it does, how it's authored, and how 
 
 ## What the installer touches
 
-The **Basic** path (the firmware Touch Bar driver) only:
+The installer (the firmware Touch Bar driver) only:
 
 - writes `/etc/modprobe.d/apple-touchbar.conf`, `/etc/modules-load.d/apple-touchbar.conf`,
   `/etc/udev/rules.d/99-ibridge.rules`,
@@ -16,10 +16,6 @@ The **Basic** path (the firmware Touch Bar driver) only:
 No data leaves the machine, nothing is piped from the network into a shell, and nothing is written
 outside `/etc`, `/usr/src`, and DKMS. You can verify all of this by reading
 [`install.sh`](install.sh) — it supports `--dry-run` to print every action without doing it.
-
-The **Full** path additionally installs a Python venv, GTK, `ffmpeg`/`v4l2loopback`, and systemd
-services for the studio + webcam bridge. Read [`install.sh`](install.sh)'s Full block if that
-matters to you.
 
 ## The freeze hazard (read this)
 
@@ -48,7 +44,7 @@ If piping `curl … | bash` as root is not for you, **clone and read first**:
 
 ```bash
 git clone https://github.com/AJ-dev-i60/t1-touchbar && cd t1-touchbar
-less install.sh          # read it
-sudo ./install.sh --basic --dry-run   # preview every action
-sudo ./install.sh --basic             # then, if you're satisfied
+less install.sh              # read it
+sudo ./install.sh --dry-run  # preview every action
+sudo ./install.sh            # then, if you're satisfied
 ```

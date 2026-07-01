@@ -1,19 +1,17 @@
-# apple-ib-drv — the firmware-path T1 Touch Bar kernel driver (Option 1's engine)
+# apple-ib-drv — the T1 Touch Bar kernel driver
 
 This is the **kernel driver** that makes the T1's *own firmware* draw the Touch Bar — the
 familiar Esc / brightness / keyboard-backlight / media / volume strip, with **hold-Fn → F1–F12**,
-exactly like macOS. It's what the installer's **Basic ("just make it work")** path sets up.
+exactly like macOS. It's the whole of what this repo installs (`install.sh`).
 
-It is a different thing from the userspace driver at the repo root:
+Because it uses the firmware, it's *set-and-forget*: the T1 draws the strip in USB **config 1**, no
+daemon holds the device, there's no "blank-until-reboot", and the **FaceTime webcam keeps working
+normally** (the udev rule that forces config 1 exposes both the Touch Bar HID and the camera's UVC
+interfaces).
 
-| | engine | how the bar is drawn | USB config |
-|---|---|---|---|
-| **Basic** (this dir) | `apple-ib-drv` kernel modules | the **T1 firmware** draws it | config 1 |
-| **Full** (repo root + `studio/`) | userspace libusb + Scenes | the **host** draws custom pixels | config 2 |
-
-Because Basic uses the firmware, it's *set-and-forget*: no daemon holding the device, no
-"blank-until-reboot", and the **FaceTime webcam keeps working normally** (the udev rule that
-forces config 1 exposes both the Touch Bar HID and the camera's UVC interfaces).
+> A separate, still-in-development project — **`t1-touchbar-studio`** — takes a different approach:
+> the *host* draws custom pixels over the device's config-2 "DFR" display path (custom buttons,
+> Scenes, app-aware behaviours). That's its own repo; this one stays lean and just makes the bar work.
 
 ## License & provenance
 

@@ -3,6 +3,15 @@
 All notable changes to this project are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- **Repo split — this is now the standalone kernel firmware driver only.** The userspace DFR driver
+  (`src/`), examples, packaging, the root `pyproject.toml`, and the studio app moved to a separate,
+  still-in-development project (`t1-touchbar-studio`), which keeps their full history. This repo is
+  the lean "just make it work" driver: `apple-ib-drv/` + a Basic-only `install.sh`/`uninstall.sh`.
+  `install.sh` dropped its `--full` path; `--basic` is still accepted as a no-op for back-compat.
+
 ## [0.2.0] — 2026-06-30
 
 The Basic firmware-driver engine, hardened and **validated on real hardware**

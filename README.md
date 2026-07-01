@@ -4,16 +4,12 @@
 
 On the 2016–2017 MacBook Pros (MacBookPro13,x / 14,x) the Touch Bar is a **T1** ("iBridge")
 device, and mainline Linux only ever supported the **T2** models — so the bar was just a black
-strip. This project lights it up, two ways:
+strip. This makes it work: the T1's **own firmware** draws the normal control strip (Esc,
+brightness, keyboard backlight, media, volume, and hold-**Fn** for **F1–F12**), exactly like
+macOS. Set-and-forget; your webcam keeps working too.
 
-- **Just make it work** — ✅ **stable, validated on hardware.** The T1's **own firmware** draws the
-  normal control strip (Esc, brightness, keyboard backlight, media, volume, and hold-**Fn** for
-  **F1–F12**), exactly like macOS. Set-and-forget; your webcam keeps working too. *This is the
-  default, and what most people want.*
-- **Customize (optional)** — 🚧 **experimental / work in progress.** Hand the whole bar to the
-  **t1bar studio** app and design your own, with a programmable 2170×60 pixel surface and finger
-  touch. The pieces work in development, but this path is **not yet validated for general use** and
-  may change — try it only if you're happy to tinker.
+It's a small out-of-tree kernel driver (a DKMS-packaged fork of `apple-ib-drv`) with the fixes
+needed to build and bind on **Linux 7.x** for the T1 — validated end-to-end on real hardware.
 
 > ⚠️ **One safety note up front.** On these 2016/2017 models there's an ACPI power-on call
 > (`ASOC.SOCW(1)`) that **hard-freezes the machine** — recoverable only by holding the power button.
@@ -26,50 +22,19 @@ strip. This project lights it up, two ways:
 curl -fsSL https://raw.githubusercontent.com/AJ-dev-i60/t1-touchbar/main/install.sh | bash
 ```
 
-…then choose **Basic** (just make it work — recommended) or **Full** (+ studio, experimental). No
-`git` needed — the installer fetches itself.
+No `git` needed — the installer fetches itself. Then **reboot** to finish.
 
-> **Project status:** **Basic is done** — it's been validated end-to-end on real hardware
-> (MacBookPro14,3 / Ubuntu 26.04 / kernel 7.0.0-27) across multiple clean installs. **Full (studio)
-> is still in development** and isn't validated for general use yet. If you just want a working Touch
-> Bar, use Basic.
->
 > As far as the public record shows, this is the first time the T1 Touch Bar has been driven from
-> Linux at all (the firmware control strip on kernel 7); custom host-drawn graphics work in
-> development and are what the in-progress studio builds on. Reverse-engineering story:
-> [`docs/DEVGUIDE.md`](docs/DEVGUIDE.md).
-
-## Two ways to use it — two different engines
-
-|  | **Basic** (default) | **Full** (optional) |
-|---|---|---|
-| Status | ✅ stable, hardware-validated | 🚧 experimental, in development |
-| What you get | the normal firmware control strip | design your own bar (Scenes) |
-| Who draws the bar | the **T1 firmware** | the **host**, custom pixels |
-| Engine | the **`apple-ib-drv` kernel driver** ([`apple-ib-drv/`](apple-ib-drv/)) | userspace libusb + **t1bar studio** ([`studio/`](studio/)) |
-| USB config | config 1 | config 2 |
-| Webcam | works natively | routed through a bridge |
-| Footprint | set-and-forget; no daemon | a service owns the bar; needs a reboot to switch |
-
-They are **mutually exclusive** (only one process can own the bar). Switching between them is a
-reboot. **Uninstalling Full returns you to Basic** — the plain firmware strip.
-
-> **Which should I pick?** If you just want the bar to behave like it does on macOS and never
-> think about it again: **Basic.** If you want to design custom layouts, colors, and behaviours:
-> **Full** (you can always add it later, or remove it to go back).
+> Linux at all (the firmware control strip, working on kernel 7).
 
 ## Requirements
 
 - A MacBook Pro with a **T1** chip (USB `05ac:8600` "iBridge"), running Linux. *(Not T2 — those
   are handled by the mainline `appletbdrm`.)*
 - **Root** for installation.
-- **Basic** pulls: `build-essential`, `linux-headers-$(uname -r)`, `dkms` (to build the kernel
-  module; DKMS rebuilds it automatically on kernel upgrades).
-- **Full** additionally pulls: Python/venv, GTK (`python3-gi gir1.2-gtk-4.0 gir1.2-adw-1
-  python3-gi-cairo`) for the editor, `playerctl`, and `ffmpeg` + `v4l2loopback-dkms` for the
-  webcam bridge.
-
-`install.sh` installs all of these for you.
+- The installer pulls `build-essential`, `linux-headers-$(uname -r)`, and `dkms` (to build the
+  kernel module; DKMS rebuilds it automatically on kernel upgrades). It targets apt-based distros
+  (Ubuntu/Debian).
 
 ## Install
 
@@ -77,101 +42,37 @@ The one-liner (no git, no clone — the installer fetches the repo itself):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AJ-dev-i60/t1-touchbar/main/install.sh | bash
-#   ...| bash -s -- --basic     # non-interactive: firmware strip only
-#   ...| bash -s -- --full      # ...also the studio (custom bar)
+#   ...| bash -s -- --yes        # non-interactive
 ```
 
-Or from a clone, if you prefer:
+Or from a clone, if you'd rather read it first:
 
 ```bash
 git clone https://github.com/AJ-dev-i60/t1-touchbar && cd t1-touchbar
-sudo ./install.sh            # interactive: Basic or Full
-#   --basic / --full / --dry-run / --yes / --no-service
+sudo ./install.sh
+#   --yes / --dry-run / --no-service
 ```
 
-- **Basic** → DKMS-builds the firmware driver, sets the critical `skip_acpi_power=1` parameter,
-  and loads it. **A reboot finishes the install — plan on it.** On an already-running system the
-  generic HID drivers (`hid-generic`/`hid-sensor-hub`) have *already* claimed the iBridge, so the
-  live load may bind nothing and the bar stays dark; after one reboot the udev rule forces config 1
-  early, the driver binds, and the strip comes up automatically on every boot.
-- **Full** → installs the studio engine + webcam bridge, stands the firmware driver down, and
-  asks you to **reboot** to hand the bar to the studio. Then open **"t1bar studio"** to design it.
+It DKMS-builds the firmware driver, sets the critical `skip_acpi_power=1` parameter, installs the
+udev rule that forces the iBridge into config 1 (which exposes both the Touch Bar HID *and* the
+webcam), and loads it. **A reboot finishes the install — plan on it.** On an already-running system
+the generic HID drivers (`hid-generic`/`hid-sensor-hub`) have *already* claimed the iBridge, so the
+live load may bind nothing and the bar stays dark; after one reboot the udev rule wins the race, the
+driver binds, and the strip comes up automatically on every boot.
 
-## The firmware driver (Basic)
+## The firmware driver
 
-[`apple-ib-drv/`](apple-ib-drv/) is the kernel module that does Basic — a fork of
-[`t2linux/apple-ib-drv`](https://github.com/t2linux/apple-ib-drv) with five fixes for Linux 7.x on
-the T1 (the key one being `skip_acpi_power`, which avoids an ACPI hard-lock at load). It's **GPL-2.0**
-(the rest of this repo is MIT). See [`apple-ib-drv/README.md`](apple-ib-drv/README.md).
-
----
-
-## Customize — the programmable surface (Full)
-
-Full is built on a thin **display + input driver** (this repo's root package, `t1touchbar`): it
-speaks the device's **DFR** protocol and reads its **touch digitizer**, giving a programmable
-2170×60 surface — render anything at ~90 fps and get mapped touch events back. The **t1bar studio**
-app ([`studio/`](studio/)) is the design tool on top; you can also drive it directly:
-
-### Python
-
-```python
-from t1touchbar import Device, TouchReader
-from PIL import Image, ImageDraw
-
-with Device() as bar:                       # switches config, handshakes, restores on exit
-    w, h = bar.width, bar.height            # 2170 x 60
-    img = Image.new("RGB", (w, h), (0, 0, 0))
-    ImageDraw.Draw(img).text((20, 10), "Hello from Linux", fill=(0, 255, 120))
-    bar.blit(img)                           # ~90 fps full-panel; geometry/colour handled
-
-    def on_touch(ev): print(ev)             # ev.state ('down'/'move'/'up'), ev.x, ev.y
-    tr = TouchReader(w, h); tr.start(on_touch)   # needs the [touch] extra (evdev)
-    input("touch the bar; enter to quit\n"); tr.stop()
-```
-
-### Socket daemon (any language)
-
-```bash
-sudo t1touchbar serve            # owns the device; prints the socket path
-```
-
-Connect to the Unix socket (default `/tmp/t1touchbar.sock`) and exchange length-prefixed messages
-— `FRAME` / `IMG` / `CLEAR` in, `TOUCH` events out. Spec in [`docs/PROTOCOL.md`](docs/PROTOCOL.md);
-a Python `Client` is included. See [`examples/`](examples/) for finger-tracking ripples, tappable
-buttons, and a marquee.
-
-## Camera — webcam *and* Touch Bar together (Full)
-
-In Basic the firmware uses config 1, so the FaceTime webcam is just an ordinary camera. In **Full**
-the studio takes config 2, where the camera is exposed as **H.264** — so `t1touchbar-camera`
-captures it and pipes it onto a **dedicated v4l2loopback node** any app can open:
-
-```bash
-sudo t1touchbar-camera --print-device   # prints e.g. DEVICE=/dev/video3, then streams
-#   -> point Howdy / Zoom / your browser at that /dev/video* node
-```
-
-It creates its *own* loopback (never touches `/dev/video0`), so your real camera is untouched.
-Requires `v4l2loopback` + `ffmpeg` (the installer handles this in Full).
-
-## Caveats (the Full / studio path only)
-
-These apply to **Full** (host-driven, config 2) — **not** to Basic, which is plain firmware:
-
-- **One owner at a time.** Only one process may hold the device.
-- **Blank until reboot.** Once the host has driven the panel, exiting hands control back but the
-  firmware doesn't reclaim it — it stays blank until a reboot. The studio service holds it lit; this
-  is why switching engines is a reboot.
-- **Coexistence.** The webcam runs alongside the bar via the bridge (above); the ambient-light
-  sensor and firmware key row are unavailable while the studio owns config 2.
-- **Nothing is persistent at the device level** — a reboot into Basic fully restores the firmware bar.
+[`apple-ib-drv/`](apple-ib-drv/) is the kernel module — a fork of
+[`t2linux/apple-ib-drv`](https://github.com/t2linux/apple-ib-drv) with fixes for Linux 7.x on the T1
+(the key one being `skip_acpi_power`, which avoids the ACPI hard-lock at load, plus the HID/ACPI API
+updates that make it build and bind on kernel 7). It's **GPL-2.0** (its own `LICENSE`); the installer
+and docs are MIT. See [`apple-ib-drv/README.md`](apple-ib-drv/README.md) for the full fix list.
 
 ## Tested on
 
 | Model | Kernel | Distro | Result |
 |---|---|---|---|
-| MacBookPro14,3 | 7.0.0-27-generic | Ubuntu 26.04 | ✅ Basic: DKMS builds, binds after reboot, webcam intact |
+| MacBookPro14,3 | 7.0.0-27-generic | Ubuntu 26.04 | ✅ DKMS builds, binds after reboot, keys + OSD work, webcam intact |
 
 Other 13,x/14,x models and kernels should work but are unverified — the kernel-7 fixes are what make
 this build on bleeding-edge kernels. Because DKMS rebuilds the module on every kernel upgrade and a
@@ -180,7 +81,7 @@ lights and run `dkms status` — it should list `apple-ib-drv/0.1, <new-kernel>:
 
 ## Troubleshooting
 
-**The healthy signature.** After a successful boot in Basic, you should see all of these:
+**The healthy signature.** After a successful boot, you should see all of these:
 
 ```bash
 lsmod | grep apple_touchbar                      # apple_touchbar is loaded
@@ -192,11 +93,11 @@ dmesg | grep -i 'apple-touchbar.*input:'         # the virtual Touch Bar HID was
 
 The installer prints a self-check at the end that looks for these for you.
 
-**The bar is dark right after install (before a reboot).** Expected — see the Basic note above.
-**Reboot once.** The live `modprobe` can't claim interfaces the generic HID drivers already hold.
-The installer *deliberately* doesn't force-unbind them and rebind live: doing so would exercise the
-device's bind/power paths (the same family as the resume `SOCW` call) outside a clean boot, for no
-real benefit — a reboot is simpler and avoids poking the one area that can wedge the hardware.
+**The bar is dark right after install (before a reboot).** Expected. **Reboot once.** The live
+`modprobe` can't claim interfaces the generic HID drivers already hold. The installer *deliberately*
+doesn't force-unbind them and rebind live: doing so would exercise the device's bind/power paths
+(the same family as the resume `SOCW` call) outside a clean boot, for no real benefit — a reboot is
+simpler and avoids poking the one area that can wedge the hardware.
 
 **Still dark after a reboot → `usbmuxd`.** `usbmuxd` (iOS-device tethering) ships a udev rule that
 also matches the iBridge `05ac:8600`; if it grabs the device first, the HID driver can't initialise
@@ -221,22 +122,29 @@ and add `modprobe.blacklist=apple_ibridge,apple_touchbar` to the kernel line.
 
 ## How it works
 
-**Basic** loads the `apple-ib-drv` kernel modules in config 1 and tells the T1 to render its
-firmware function/control layouts (the bar draws itself; touches come back as key events).
-**Full** switches the iBridge to its config-2 ("OS X") configuration, claims the Audio/Video
-interface, and speaks the **DFR** protocol (the same one mainline `appletbdrm` uses on T2 Macs),
-streaming host-rendered frames and reading the touch digitizer. The two never run at once.
+The installer loads the `apple-ib-drv` kernel modules in USB **config 1** and lets the T1 render its
+firmware function/control layouts — the bar draws itself, and touches come back as ordinary key
+events (so brightness/volume OSD and hold-Fn→F-keys all work through the normal input stack). Config
+1 also exposes the FaceTime webcam's UVC interfaces, which is why the camera keeps working.
+
+## Want to design your own bar?
+
+Custom pixels — your own buttons, colours, and app-aware behaviours drawn by the host instead of the
+firmware — are a **separate, still-in-development project, `t1-touchbar-studio`.** It's a
+fundamentally different approach (it takes the device's config-2 "DFR" display path) and is treated
+as its own project. This repo stays lean: just the driver that makes the bar work. The studio will
+be announced when it's ready.
 
 ## Trust & authorship
 
 This is new code, and it asks for root to build a kernel module that can freeze your hardware — so
 healthy skepticism is correct. A few things to make an informed decision:
 
-- **Read before you run.** The Basic path only writes to `/etc/modprobe.d`, `/etc/udev/rules.d`,
+- **Read before you run.** The installer only writes to `/etc/modprobe.d`, `/etc/udev/rules.d`,
   `/etc/modules-load.d`, and DKMS under `/usr/src` — no network beyond `apt`, no piping remote
   content to a shell. If you'd rather not pipe `curl` into `bash`, clone and read first
   (`git clone … && less install.sh && sudo ./install.sh`). The one-liner just fetches this same
-  repo and runs the same script.
+  repo and runs the same script. `--dry-run` prints every action without doing it.
 - **The commit trailers.** Commits are authored by **AJ-dev-i60** and co-authored by **Claude**
   (this project is built with Claude Code as a pair-programmer — that's what the `Claude` /
   `Co-Authored-By` trailers are). Not a sign of tampering.
@@ -244,11 +152,12 @@ healthy skepticism is correct. A few things to make an informed decision:
 
 ## License
 
-The userspace driver, studio, and tooling are **MIT** (see [LICENSE](LICENSE)). The bundled kernel
-driver in [`apple-ib-drv/`](apple-ib-drv/) is **GPL-2.0** (its own `LICENSE`).
+The installer, packaging, and docs are **MIT** (see [LICENSE](LICENSE)). The kernel driver in
+[`apple-ib-drv/`](apple-ib-drv/) is **GPL-2.0** (its own `LICENSE`).
 
 ## Acknowledgements
 
-The firmware driver is a fork of `t2linux/apple-ib-drv`. The DFR protocol shape was informed by the
-mainline Linux `appletbdrm` (T2) driver and imbushuo's Windows work. T1 support, geometry, touch,
-and the userspace driver are an independent implementation.
+The firmware driver is a fork of [`t2linux/apple-ib-drv`](https://github.com/t2linux/apple-ib-drv)
+(itself descended from the roadrunner2 / `macbook12-spi-driver` lineage). The kernel-7 build fixes
+and the DMI-gated freeze-skip are added on top; T1 support on kernel 7 is otherwise an independent
+port.
