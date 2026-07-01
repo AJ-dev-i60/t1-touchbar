@@ -62,8 +62,9 @@ not part of this release's guarantees.
 
 ## [0.1.0] — 2026-06-27
 
-First release. The Apple T1 (iBridge) Touch Bar is, as far as the public record
-shows, driven from Linux for the first time.
+Initial release — the userspace custom-pixel (DFR) driver for the T1 Touch Bar.
+**This code has since moved to the separate `t1-touchbar-studio` project** (see the
+0.3.0 split); the entry is kept here for history.
 
 ### Added
 - `Device` — display output: configuration switch to config 2, GINF/REDY

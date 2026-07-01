@@ -30,8 +30,13 @@ git clone https://github.com/AJ-dev-i60/t1-touchbar && cd t1-touchbar && sudo ./
 
 The `curl` line needs no `git` (the installer fetches itself); either way, **reboot** to finish.
 
-> As far as the public record shows, this is the first time the T1 Touch Bar has been driven from
-> Linux at all (the firmware control strip, working on kernel 7).
+> **What this is — and what it builds on.** The T1 Touch Bar has worked on Linux for *years*, thanks
+> to the [`apple-ib-drv`](https://github.com/t2linux/apple-ib-drv) / roadrunner2 community — but only
+> up to **kernel 6.x**. A 2023 HID change broke it on newer kernels, and Linux **7.0** only released
+> in **April 2026**, so on current systems the bar went dark again. This is the driver that makes the
+> T1 Touch Bar work on **Linux 7**: the community's kernel-6 work **ported forward** to build and bind
+> on the 7.x series, and made freeze-safe by default. It stands entirely on the shoulders of the
+> people who got it working on kernel 6.
 
 ## Requirements
 
@@ -163,7 +168,8 @@ The installer, packaging, and docs are **MIT** (see [LICENSE](LICENSE)). The ker
 
 ## Acknowledgements
 
-The firmware driver is a fork of [`t2linux/apple-ib-drv`](https://github.com/t2linux/apple-ib-drv)
-(itself descended from the roadrunner2 / `macbook12-spi-driver` lineage). The kernel-7 build fixes
-and the DMI-gated freeze-skip are added on top; T1 support on kernel 7 is otherwise an independent
-port.
+This is a fork of [`t2linux/apple-ib-drv`](https://github.com/t2linux/apple-ib-drv) (itself descended
+from the roadrunner2 / `macbook12-spi-driver` lineage) — all the hard reverse-engineering and the
+working kernel-6 driver are their work. What this fork adds on top is the port forward to **kernel 7**
+(the HID/ACPI build-and-bind fixes) and the DMI-gated freeze-skip. Credit to everyone in that
+lineage; without them there'd be nothing to port.
