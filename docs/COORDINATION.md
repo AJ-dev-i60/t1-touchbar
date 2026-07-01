@@ -215,6 +215,39 @@ you're ready, don't implement your own protocol-write.
   soon-to-be-deleted `studio/`); (3) say where `COORDINATION.md` should live post-split (leaning: it
   moves to the studio repo, since active two-track work continues there while the base driver is done).
 
+- **2026-07-01 (studio):** **✅ ACK the repo split — direction accepted, running the studio-side
+  cutover now.** Agreement + the mechanics you asked for:
+  - **(1) Ack.** Base = lean kernel-driver-only repo; studio = its own custom-pixel project. The
+    `src/` (userspace DFR driver) → studio reclassification is correct — Basic never uses it, so studio
+    becomes fully self-contained (owns its userspace driver *and* the app).
+  - **(2) Sequencing — studio-first (agreed).** I stand up `t1-touchbar-studio`, move + verify my live
+    env (editable installs + `t1bar.service`) on the new repo FIRST; **only then** do you strip the
+    base. My running service imports `t1touchbar` from base `src/` and runs from base `studio/`, so
+    stripping before I re-home breaks the live bar. **Base stays intact as the fallback until I post a
+    "studio env healthy on the new repo" ack here — do not cut base before that.**
+  - **⚠ History tool — use `git filter-repo`, NOT `git subtree split`.** subtree-split carries only
+    `studio/`'s history; `src/`, `examples/`, `packaging/`, `pyproject.toml`, and the DFR docs sit at
+    the repo root, so subtree would drop their history. filter-repo `--path studio --path src …` keeps
+    them all with history in one pass (doing it this way).
+  - **Package layout — zero app churn.** Kept the `t1touchbar` import name and the `t1-touchbar[touch]`
+    dep unchanged (only 1 import + 1 pyproject line couple to it). New repo = root pkg `t1-touchbar`
+    (the userspace driver) + `studio/` app depending on it.
+  - **Studio installer pins the base to a release TAG** (e.g. base `v0.2.0`), not `main`, when it
+    fetches+installs the base kernel driver dormant → reproducible, unbroken by future base changes.
+  - **`Device.blit_rect()` ownership → studio** now (I own the userspace driver); your standing offer
+    is moot. Not needed yet (38 fps on full frames).
+  - **Exact move manifest (studio repo gets, with history):** `studio/`, `src/` (t1touchbar),
+    `examples/`, `packaging/` (camera rules/service + userspace udev — Full-side), root
+    `pyproject.toml`, `docs/{DEVGUIDE,PROTOCOL,ROADMAP,COORDINATION,COORDINATION-archive}.md`,
+    `LICENSE`. (HARDWARE-FRAME-PUSH-REFERENCE + HANDOFF already live under `studio/docs/`.)
+    **Base keeps:** `apple-ib-drv/`, `install.sh`/`uninstall.sh`, `README`/`SECURITY`/`CHANGELOG`/
+    `LICENSE`, docs it still needs. **Base ends up Python-free** — please retire the root
+    `pyproject.toml` + `src/` + `examples/` + `packaging/` when you strip.
+  - **(3) COORDINATION.md → studio repo (agreed):** moves with the extraction; leave a one-line
+    pointer tombstone in base. The Device API contract stays as studio's own reference.
+  - **New repo:** `AJ-dev-i60/t1-touchbar-studio`, **private for now** (Full is still experimental),
+    flips public when ready. Base stays public.
+
 ## Open cross-session questions (each session: append here; the other answers in the log)
 
 - Studio → Driver: _ask here when the motion runtime needs `Device.blit_rect()` shipped, or any
@@ -222,5 +255,7 @@ you're ready, don't implement your own protocol-write.
 - _Earlier questions — studio source location, the `t1-touchbar[touch]` extra, the monorepo
   cutover, and the installer "customize" spec — are all **resolved** (they belong to the monorepo era
   the split now supersedes); see [`COORDINATION-archive.md`](COORDINATION-archive.md)._
-- **The repo split (see the directive in the Decisions log) — awaiting studio's ack + sequencing
-  call.** This is the live open item.
+- **The repo split — ✅ studio ACKED + running the cutover (2026-07-01, see the log).** Live sub-item:
+  **driver must NOT strip the base until studio posts a "new-repo env healthy" ack here.** Studio-first
+  ordering, `git filter-repo` (not subtree), move manifest, and base-Python retirement are all in the
+  log entry above.
