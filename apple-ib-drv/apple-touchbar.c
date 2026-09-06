@@ -263,6 +263,19 @@ static int appletb_set_tb_mode(struct appletb_device *tb_dev,
 
 			usleep_range(1000 << tries, 3000 << tries);
 		} while (++tries < 5);
+
+		/*
+		 * usb_control_msg() returns the number of bytes transferred on
+		 * success. The mode report is one byte, while the worker expects
+		 * its helper to return zero on success.
+		 */
+		if (rc == 1)
+			rc = 0;
+		else if (rc >= 0) {
+			hid_err(tb_dev->mode_iface.hdev,
+				"Short touch bar mode transfer (%d/1)\n", rc);
+			rc = -EIO;
+		}
 	} else {
 		rc = hid_hw_raw_request(tb_dev->mode_iface.hdev, report->id,
 					(__u8 *) buf, 2, report->type,
@@ -764,8 +777,14 @@ static int appletb_hid_event(struct hid_device *hdev, struct hid_field *field,
 	 * we do want to wake up the screen if it's asleep, so generate a dummy
 	 * event in that case.
 	 */
+	/*
+	 * T1 has no independent display-control interface, and its display
+	 * helper is intentionally a no-op. Do not suppress a real key from
+	 * the logical display cache when the mode itself is active.
+	 */
 	if (tb_dev->cur_tb_mode == APPLETB_CMD_MODE_OFF ||
-	    tb_dev->cur_tb_disp == APPLETB_CMD_DISP_OFF) {
+	    (!tb_dev->is_t1 &&
+	     tb_dev->cur_tb_disp == APPLETB_CMD_DISP_OFF)) {
 		send_dummy = true;
 		rc = 1;
 	/* translate special keys */
