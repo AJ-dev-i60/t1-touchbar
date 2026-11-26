@@ -150,6 +150,7 @@ struct appletb_device {
 	}			mode_iface, disp_iface;
 
 	struct input_handler	inp_handler;
+	bool			inp_handler_registered;
 	struct input_handle	kbd_handle;
 	struct input_handle	tpd_handle;
 
@@ -1255,6 +1256,7 @@ static int appletb_probe(struct hid_device *hdev,
 				rc);
 			goto mark_inactive;
 		}
+		tb_dev->inp_handler_registered = true;
 
 		/* initialize sysfs attributes */
 		rc = sysfs_create_group(&tb_dev->mode_iface.hdev->dev.kobj,
@@ -1272,6 +1274,7 @@ static int appletb_probe(struct hid_device *hdev,
 
 unreg_handler:
 	input_unregister_handler(&tb_dev->inp_handler);
+	tb_dev->inp_handler_registered = false;
 mark_inactive:
 	appletb_test_and_mark_inactive(tb_dev, hdev);
 	cancel_delayed_work_sync(&tb_dev->tb_work);
@@ -1294,6 +1297,7 @@ static void appletb_remove(struct hid_device *hdev)
 				   &appletb_attr_group);
 
 		input_unregister_handler(&tb_dev->inp_handler);
+		tb_dev->inp_handler_registered = false;
 
 		cancel_delayed_work_sync(&tb_dev->tb_work);
 		appletb_set_tb_mode(tb_dev, APPLETB_CMD_MODE_OFF);
@@ -1303,6 +1307,22 @@ static void appletb_remove(struct hid_device *hdev)
 			hid_hw_power(tb_dev->disp_iface.hdev, PM_HINT_NORMAL);
 
 		dev_info(tb_dev->log_dev, "Touchbar deactivated\n");
+	} else if (tb_dev->inp_handler_registered &&
+		   (hdev == tb_dev->mode_iface.hdev ||
+		    hdev == tb_dev->disp_iface.hdev)) {
+		/*
+		 * Removed while inactive (e.g. after a resume that never
+		 * re-activated the bar): still tear down what probe set up,
+		 * or the input core keeps a handler pointing into freed
+		 * module memory.
+		 */
+		if (tb_dev->mode_iface.hdev)
+			sysfs_remove_group(&tb_dev->mode_iface.hdev->dev.kobj,
+					   &appletb_attr_group);
+		input_unregister_handler(&tb_dev->inp_handler);
+		tb_dev->inp_handler_registered = false;
+		cancel_delayed_work_sync(&tb_dev->tb_work);
+		dev_info(tb_dev->log_dev, "Touchbar torn down while inactive\n");
 	}
 
 	hid_hw_close(hdev);
@@ -1500,6 +1520,10 @@ error:
 static void __exit appletb_exit(void)
 {
 	hid_unregister_driver(&appletb_hid_driver);
+	if (appletb_dev->inp_handler_registered) {
+		input_unregister_handler(&appletb_dev->inp_handler);
+		appletb_dev->inp_handler_registered = false;
+	}
 	appletb_free_device(appletb_dev);
 }
 
